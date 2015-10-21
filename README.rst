@@ -19,17 +19,9 @@ For more info: https://github.com/astroufsc/chimera/blob/master/docs/site/chimer
 Installation
 ------------
 
-Installation instructions. Dependencies, etc...
-
 ::
 
-   pip install -U chimera_template
-
-or
-
-::
-
-    pip install -U git+https://github.com/astroufsc/chimera-template.git
+    pip install -U git+https://github.com/astroufsc/chimera-skyflat.git
 
 
 Configuration Example

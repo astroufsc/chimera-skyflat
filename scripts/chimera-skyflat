@@ -1,0 +1,6 @@
+from chimera.core.manager import Manager
+
+m = Manager()
+autoskyflat = m.getProxy('127.0.0.1:7666/AutoSkyFlat/fake')
+
+autoskyflat.getFlats()
