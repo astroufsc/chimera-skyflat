@@ -4,8 +4,10 @@ from astropy.io import fits
 from chimera.controllers.imageserver.util import getImageServer
 from chimera.core.exceptions import ChimeraException
 from chimera.interfaces.camera import Shutter
+from chimera.util.coord import Coord
 from chimera.util.image import ImageUtil
 import time
+from datetime import datetime, timedelta
 from chimera_skyflat.interfaces.autoskyflat import IAutoSkyFlat
 
 import ntpath
@@ -55,8 +57,10 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         if self["filterwheel"] is not None:
             fw = self._getFilterWheel()
             fw.setFilter(filter)
+        self.log.debug("Start frame")
         frames = cam.expose(exptime=exptime, frames=1, shutter=Shutter.OPEN,
                             filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE")))
+        self.log.debug("End frame")
 
         if frames:
             image = frames[0]
@@ -103,19 +107,82 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # 6 - Goto 2.
         site = self._getSite()
         pos = site.sunpos()
-        self.log.debug('Sun altitude is %f' % pos.alt)
+        #self.log.debug('Sun altitude is %f %f' % pos.alt % self.sunInitialZD)
+        self.log.debug('Sun altitude is {} {}'.format(pos.alt.D, self.sunInitialZD))
+
+        while pos.alt.D > self.sunInitialZD:
+            # maybe we should test for pos << self.sunInitialZD :-)
+            time.sleep(10)
+            pos = site.sunpos()
+            self.log.debug('Sun altitude is %f' % pos.alt)
+
         self.log.debug('Taking image...')
         sky_level = self.getSkyLevel(exptime=self.defaultExptime)
         self.log.debug('Mean: %f'% sky_level)
-        #filename, image = self._takeImage(exptime=initialExptime, filter=filter)
-        #frame = fits.getdata(filename)
-        #self.log.debug('Mean: %f'% np.mean(frame))
 
 
-    def getSkyLevel(self, exptime=self.defaultExptime, debug=False):
+        print "Initial positions", pos.alt.D, self.sunFinalZD
+        while pos.alt.D > self.sunFinalZD:
+            print pos.alt.D, self.sunFinalZD
+            expTime = self.computeSkyFlatTime(sky_level, pos.alt)
+            self.log.debug("Done")
+            self.log.debug('1Exptime = %f'% expTime )
+            self.log.debug('1Taking image...')
+            sky_level = self.getSkyLevel(exptime=expTime)
+            self.log.debug('1Mean: %f'% sky_level)
+
+    def computeSkyFlatTime(self, sky_level, altitude):
+        """
+        User specifies:
+        :param sky_level - current level of sky counts
+        :param pos.alt - initial Sun altitude
+        :return exposure time needed to reach sky_level
+
+        Method returns exposureTime
+
+        This computation requires Scale, Slope, Bias
+        Scale and Slope are filter dependent, I think they should be part of some enum type variable
+        """
+
+        site = self._getSite()
+
+        intCounts = 0.0
+        intTimeSeconds = 0
+        #print "AUIQ", intCounts , idealCounts
+
+        initialTime = datetime.now()
+        while intCounts < self.idealCounts:
+            #print "0"
+            #print "altitude radians", altitude.R
+            # this needs to use sky_level
+            intensity = self.expArg(altitude.R, self.Scale, self.Slope, self.Bias)
+            #print "1"
+            initialTime = initialTime + timedelta(seconds=1)
+            #print "2"
+            altitude = site.sunpos(initialTime).alt
+            #print "T", initialTime
+            #print "Int, alt, intcounts", intensity, "alt" , altitude, "intCounts",  intCounts
+            intTimeSeconds += 1
+            intCounts = intCounts + intensity
+        print "IntTime, Counts2", intTimeSeconds, intCounts
+        return float(intTimeSeconds)
+
+
+
+    def expTime(self, sky_level, altitude):
+        """
+        Computes sky level for current altitude
+        Assumes sky_lve
+        :param sky_level:
+        :param altitude:
+        :return:
+        """
+
+    def getSkyLevel(self, exptime, debug=False):
         """
         Takes one sky flat and returns average
-        Need to get rid of deviant points, median is best, but takes too long K???
+        Need to get rid of deviant points, mode is best, but takes too long, using mean for now K???
+        For now just using median which is almost OK
         """
 
         self.setSideOfPier("E") # self.sideOfPier)
@@ -130,6 +197,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         except:
             self.log.error("Can't take image")
             raise
+
+
+
+    def expArg(self,x,Scale,Slope,Bias):
+        #print "expArg", x, Scale, Slope, Bias
+        return(Scale * np.exp(Slope * x) + Bias)
 
 
 
