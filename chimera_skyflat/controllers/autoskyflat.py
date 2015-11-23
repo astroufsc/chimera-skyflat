@@ -24,9 +24,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         ChimeraObject.__init__(self)
         self.sideOfPier = "E"
         self.filter="R"
-        self.sunInitialZD=3
-        self.sunFinalZD=10
-        self.defaultExptime=30
+        self.sunInitialZD=35
+        self.sunFinalZD=-30
+        self.defaultExptime=1
+        # Coefficients for sky exponential decay
+        # filter R 20150927
+        # 4111504.50247 50.6058777823 297.940761798
+        self.Scale = 2000000
+        self.Slope = 68
+        self.Bias = 17
+        self.idealCounts = 25000 # this should be a detector property
 
 
     def _getSite(self):
