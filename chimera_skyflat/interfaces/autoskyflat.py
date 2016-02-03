@@ -49,7 +49,18 @@ class IAutoSkyFlat(Interface):
                   "camera": "/Camera/0",
                   "filterwheel": "/FilterWheel/0",
                   "site": "/Site/0",
-                  "ideal_counts": 25000, # this should actually be a property of camera or even better, detector
+                  "sideOfPier": "E",
+                  "filter": "R",
+                  "sunInitialZD": -5,
+                  "sunFinalZD": -30,
+                  "defaultExptime": 1,
+                  # Coefficients for sky exponential decay
+                  # filter R 20150927
+                  # 4111504.50247 50.6058777823 297.940761798
+                  "Scale": 2000000,
+                  "Slope": 68,
+                  "Bias": 17,
+                  "idealCounts": 25000 # this should be a detector property
                   }
 
     def getFlats(self, debug=False):  #filter, sunInitialZD, sunFinalZD, initialExptime, pierSide):

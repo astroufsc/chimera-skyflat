@@ -1,6 +1,65 @@
-from chimera.core.manager import Manager
+#! /usr/bin/env python
 
-m = Manager()
-autoskyflat = m.getProxy('127.0.0.1:7666/AutoSkyFlat/fake')
 
-autoskyflat.getFlats()
+import sys
+
+from chimera.core.cli import ChimeraCLI, action
+from chimera.core.compat import freeze_support
+from chimera.interfaces.pointverify import CanSetScopeButNotThisField, CantSetScopeException
+from chimera.util.astrometrynet import NoSolutionAstrometryNetException
+from chimera.util.astrometrynet import AstrometryNet
+
+
+class ChimeraAutoSkyFlat(ChimeraCLI):
+    def __init__(self):
+        # are these entities being created or am I referring to existing things?
+        # the first entry is how the script will be called
+        # the second entry is an English language description of the script
+        ChimeraCLI.__init__(self, "chimera-skyflat", "SkyFlats", 0.1)
+        self.addHelpGroup("SKYFLAT", "skyFlats")
+        self.addController(name="skyflat",
+                           cls="AutoSkyFlat",
+                           required=True,
+                           helpGroup="SKYFLAT",
+                           help="Auto Sky Flats")
+        self.addParameters(
+            dict(name="sunInitialZD",
+                 long="sunHi",
+                 type="float",
+                 helpGroup="SKYFLAT",
+                 help="Highest Sun altitude",
+                 metavar="FILE"),
+            dict(name="sunFinalZD",
+                 long="sunLow",
+                 type="float",
+                 helpGroup="SKYFLAT",
+                 help="Lowest Sun altitude",
+                 metavar="FILE"))
+
+    @action(long="auto",
+            help="Does a sequence of sky flats",
+            helpGroup="SKYFLAT")
+    def doSequence(self, options):
+        """
+        Chooses a field to point the scope to, moves the scope,
+        takes an image and verifies the pointing
+        """
+        self.out("Pointing scope to the zenith and waiting for the Sun to reach skyflats altitude range")
+        try:
+            self.skyflat.getFlats()
+        # what is this e for ???
+        except CantSetScopeException:
+            self.exit("Can't set scope")
+        self.out("OK")
+
+
+
+def main():
+    cli = ChimeraAutoSkyFlat()
+    cli.run(sys.argv)
+    cli.wait()
+
+
+if __name__ == '__main__':
+    freeze_support()
+    main()

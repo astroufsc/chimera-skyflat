@@ -24,18 +24,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     # initialize the relevant variables
     def __init__(self):
         ChimeraObject.__init__(self)
-        self.sideOfPier = "E"
-        self.filter="R"
-        self.sunInitialZD=35
-        self.sunFinalZD=-30
-        self.defaultExptime=1
-        # Coefficients for sky exponential decay
-        # filter R 20150927
-        # 4111504.50247 50.6058777823 297.940761798
-        self.Scale = 2000000
-        self.Slope = 68
-        self.Bias = 17
-        self.idealCounts = 25000 # this should be a detector property
 
 
     def _getSite(self):
@@ -108,28 +96,33 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         site = self._getSite()
         pos = site.sunpos()
         #self.log.debug('Sun altitude is %f %f' % pos.alt % self.sunInitialZD)
-        self.log.debug('Sun altitude is {} {}'.format(pos.alt.D, self.sunInitialZD))
+        self.log.debug('Sun altitude 0 is {} {}'.format(pos.alt.D, self["sunInitialZD"]))
 
-        while pos.alt.D > self.sunInitialZD:
+        # while the Sun is above or below the flat field strip we just wait
+        while pos.alt.D > self["sunInitialZD"] or pos.alt.D < self["sunFinalZD"]:
             # maybe we should test for pos << self.sunInitialZD :-)
             time.sleep(10)
             pos = site.sunpos()
-            self.log.debug('Sun altitude is %f' % pos.alt)
+            self.log.debug('Sun altitude 1 is %f' % pos.alt.D)
 
-        self.log.debug('Taking image...')
-        sky_level = self.getSkyLevel(exptime=self.defaultExptime)
-        self.log.debug('Mean: %f'% sky_level)
+        # while the Sun is in the flat field strip we take images
+        while pos.alt.D < self["sunInitialZD"] and pos.alt.D > self["sunFinalZD"]:
+
+            self.log.debug('Taking image...')
+            sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
+            self.log.debug('Mean: %f'% sky_level)
 
 
-        print "Initial positions", pos.alt.D, self.sunFinalZD
-        while pos.alt.D > self.sunFinalZD:
-            print pos.alt.D, self.sunFinalZD
-            expTime = self.computeSkyFlatTime(sky_level, pos.alt)
-            self.log.debug("Done")
-            self.log.debug('1Exptime = %f'% expTime )
-            self.log.debug('1Taking image...')
-            sky_level = self.getSkyLevel(exptime=expTime)
-            self.log.debug('1Mean: %f'% sky_level)
+            print "Initial positions", pos.alt.D, self["sunInitialZD"], self["sunFinalZD"]
+            while pos.alt.D < self["sunInitialZD"] and pos.alt.D > self["sunFinalZD"]:
+                print pos.alt.D, self["sunFinalZD"]
+                expTime = self.computeSkyFlatTime(sky_level, pos.alt)
+                self.log.debug("Done")
+                self.log.debug('1Exptime = %f'% expTime )
+                self.log.debug('1Taking image...')
+                sky_level = self.getSkyLevel(exptime=expTime)
+                self.log.debug('1Mean: %f'% sky_level)
+                print "teste"
 
     def computeSkyFlatTime(self, sky_level, altitude):
         """
@@ -137,36 +130,23 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         :param sky_level - current level of sky counts
         :param pos.alt - initial Sun altitude
         :return exposure time needed to reach sky_level
-
         Method returns exposureTime
-
         This computation requires Scale, Slope, Bias
         Scale and Slope are filter dependent, I think they should be part of some enum type variable
         """
 
         site = self._getSite()
-
         intCounts = 0.0
         intTimeSeconds = 0
-        #print "AUIQ", intCounts , idealCounts
-
         initialTime = datetime.now()
-        while intCounts < self.idealCounts:
-            #print "0"
-            #print "altitude radians", altitude.R
-            # this needs to use sky_level
-            intensity = self.expArg(altitude.R, self.Scale, self.Slope, self.Bias)
-            #print "1"
+        while intCounts < self["idealCounts"]:
+            intensity = self.expArg(altitude.R, self["Scale"], self["Slope"], self["Bias"])
             initialTime = initialTime + timedelta(seconds=1)
-            #print "2"
             altitude = site.sunpos(initialTime).alt
-            #print "T", initialTime
-            #print "Int, alt, intcounts", intensity, "alt" , altitude, "intCounts",  intCounts
             intTimeSeconds += 1
             intCounts = intCounts + intensity
         print "IntTime, Counts2", intTimeSeconds, intCounts
         return float(intTimeSeconds)
-
 
 
     def expTime(self, sky_level, altitude):
@@ -186,10 +166,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
 
         self.setSideOfPier("E") # self.sideOfPier)
-        # self.move
-
         try:
-            filename, image = self._takeImage(exptime=exptime, filter=self.filter)
+            filename, image = self._takeImage(exptime=exptime, filter=self["filter"])
             frame = fits.getdata(filename)
             img_mean = np.mean(frame)
 
