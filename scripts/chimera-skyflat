@@ -12,9 +12,6 @@ from chimera.util.astrometrynet import AstrometryNet
 
 class ChimeraAutoSkyFlat(ChimeraCLI):
     def __init__(self):
-        # are these entities being created or am I referring to existing things?
-        # the first entry is how the script will be called
-        # the second entry is an English language description of the script
         ChimeraCLI.__init__(self, "chimera-skyflat", "SkyFlats", 0.1)
         self.addHelpGroup("SKYFLAT", "skyFlats")
         self.addController(name="skyflat",
@@ -41,10 +38,16 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
             helpGroup="SKYFLAT")
     def doSequence(self, options):
         """
-        Chooses a field to point the scope to, moves the scope,
-        takes an image and verifies the pointing
+        Sets variables using command line options
+        Take skyflats according to options
         """
         self.out("Pointing scope to the zenith and waiting for the Sun to reach skyflats altitude range")
+        if options.sunFinalZD > options.sunInitialZD:
+            self.exit("sunHi needs to be less than sunLow")
+        if options.sunInitialZD:
+            self.skyflat["sunInitialZD"] = options.sunInitialZD
+        if options.sunFinalZD:
+            self.skyflat["sunFinalZD"] = options.sunFinalZD
         try:
             self.skyflat.getFlats()
         # what is this e for ???
