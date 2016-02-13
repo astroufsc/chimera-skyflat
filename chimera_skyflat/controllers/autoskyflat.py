@@ -1,5 +1,6 @@
 from __future__ import division
 import os
+import threading
 from astropy.io import fits
 from chimera.controllers.imageserver.util import getImageServer
 from chimera.core.exceptions import ChimeraException
@@ -25,6 +26,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     # initialize the relevant variables
     def __init__(self):
         ChimeraObject.__init__(self)
+        self._abort = threading.Event()
+        self._abort.clear()
 
 
     def _getSite(self):
@@ -80,7 +83,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         tel = self._getTel()
         try:
             self.log.debug("Skyflat Slewing scope to zenith")
-            tel.slewToAltAz(Position.fromAltAz(90, 270))
+            tel.slewToAltAz(Position.fromAltAz(89, 79.5))
         except:
             self.log.debug("Error moving the telescope")
 
@@ -106,7 +109,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         except:
             self.log.debug("Error starting the telescope")
 
-    def getFlats(self, debug=False):
+    def getFlats(self,
+                 sunInitialZD = -5.0, sunFinalZD = -30.0,
+                 filter = 'R',  initialExptime = 1.0,
+                 pierSide = 'E', # FIXME: Replace by Enum definition
+                 skypar = (2000000., 68., 17.),
+                 debug=False):
         """
         DOCME
         :type self: object
@@ -120,37 +128,61 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # 4 - Compute exposure time
         # 5 - Take flat
         # 6 - Goto 2.
+
+        self._abort.clear()
+
         site = self._getSite()
         pos = site.sunpos()
         #self.log.debug('Sun altitude is %f %f' % pos.alt % self.sunInitialZD)
-        self.log.debug('Sun altitude 0 is {} {} {}'.format(pos.alt.D, self["sunInitialZD"], self["sunFinalZD"]))
+        self.log.debug('Sun altitude 0 is {} {} {}'.format(pos.alt.D, sunInitialZD, sunFinalZD))
 
         # while the Sun is above or below the flat field strip we just wait
-        while pos.alt.D > self["sunInitialZD"] or pos.alt.D < self["sunFinalZD"]:
-            # maybe we should test for pos << self.sunInitialZD K???
+        while pos.alt.D > sunInitialZD or pos.alt.D < sunFinalZD:
+            # FIXME: maybe we should test for pos << self.sunInitialZD K???
             time.sleep(10)
             pos = site.sunpos()
-            self.log.debug('Sun altitude 1 is %f %f %f' % (pos.alt.D, self["sunInitialZD"] , self["sunFinalZD"]))
+            self.log.debug('Sun altitude 1 is %f %f %f' % (pos.alt.D, sunInitialZD , sunFinalZD))
+            # checking for aborting signal
+            if self._abort.isSet():
+                self.log.warning('Aborting!')
+                return
 
         # while the Sun is IN the flat field strip we take images
-        if self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
-            self.log.debug('Taking image...')
-            sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
-            self.log.debug('Mean: %f'% sky_level)
-            pos = site.sunpos()
-            self._moveScope()
-            self._stopTracking()
-        while self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
-            self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunInitialZD"],self["sunFinalZD"]))
-            expTime = self.computeSkyFlatTime(sky_level, pos.alt)
-            self.log.debug("Done")
-            self.log.debug('1Exptime = %f'% expTime )
-            self.log.debug('1Taking image...')
-            sky_level = self.getSkyLevel(exptime=expTime)
-            self.log.debug('1Mean: %f'% sky_level)
-            pos = site.sunpos()
+        # if sunInitialZD > pos.alt.D > sunFinalZD:
+        # self.log.debug('Taking image...')
+        # sky_level = self.getSkyLevel(exptime=initialExptime)
+        # self.log.debug('Mean: %f'% sky_level)
 
-        self._startTracking()
+        pos = site.sunpos()
+        while sunInitialZD > pos.alt.D > sunFinalZD:
+
+            for i in range(len(filter)):
+
+                self.log.debug("Compute sky flat time in filter %s" % filter[i])
+
+                pos = site.sunpos()
+                self._moveScope()
+                self._startTracking()
+                self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,sunInitialZD,sunFinalZD))
+
+                sky_level = self.getSkyLevel(exptime=initialExptime[i],
+                                             filter=filter[i],
+                                             sideOfPier=pierSide)
+                initialExptime[i] = self.computeSkyFlatTime(sky_level, pos.alt,
+                                                            Scale=skypar[filter[i]][0],
+                                                            Slope=skypar[filter[i]][1],
+                                                            Bias=skypar[filter[i]][2])
+                self.log.debug("Done")
+                self.log.debug('Exptime = %f' % initialExptime[i])
+
+                if self._abort.isSet():
+                    self.log.warning('Aborting!')
+                    return
+
+            pos = site.sunpos() # update at end of the loop.
+
+
+        # self._startTracking()
         #
         # while self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
         #
@@ -169,7 +201,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         #         sky_level = self.getSkyLevel(exptime=expTime)
         #         self.log.debug('1Mean: %f'% sky_level)
 
-    def computeSkyFlatTime(self, sky_level, altitude):
+    def computeSkyFlatTime(self, sky_level, altitude,
+                           Scale, Slope, Bias):
         """
         User specifies:
         :param sky_level - current level of sky counts
@@ -185,7 +218,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         intTimeSeconds = 0
         initialTime = datetime.now() # check this K???
         while intCounts < self["idealCounts"]:
-            intensity = self.expArg(altitude.R, self["Scale"], self["Slope"], self["Bias"])
+            intensity = self.expArg(altitude.R, Scale, Slope, Bias)
             initialTime = initialTime + timedelta(seconds=1)
             altitude = site.sunpos(initialTime).alt
             intTimeSeconds += 1
@@ -203,16 +236,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         :return:
         """
 
-    def getSkyLevel(self, exptime, debug=False):
+    def getSkyLevel(self, exptime, filter, sideOfPier, debug=False):
         """
         Takes one sky flat and returns average
         Need to get rid of deviant points, mode is best, but takes too long, using mean for now K???
         For now just using median which is almost OK
         """
 
-        self.setSideOfPier("E") # self.sideOfPier)
+        self.setSideOfPier(sideOfPier) # self.sideOfPier)
         try:
-            filename, image = self._takeImage(exptime=exptime, filter=self["filter"])
+            filename, image = self._takeImage(exptime=exptime, filter=filter)
             frame = fits.getdata(filename)
             img_mean = np.mean(frame)
             image.close()
@@ -221,7 +254,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             self.log.error("Can't take image")
             raise
 
-
+    def abort(self):
+        self._abort.set()
 
     def expArg(self,x,Scale,Slope,Bias):
         #print "expArg", x, Scale, Slope, Bias

@@ -2,39 +2,78 @@
 
 
 import sys
-
-from chimera.core.cli import ChimeraCLI, action
+import copy
+from chimera.core.cli import ChimeraCLI, action, ParameterType
 from chimera.core.compat import freeze_support
 from chimera.interfaces.pointverify import CanSetScopeButNotThisField, CantSetScopeException
 from chimera.util.astrometrynet import NoSolutionAstrometryNetException
 from chimera.util.astrometrynet import AstrometryNet
 
+import re
+import json
 
 class ChimeraAutoSkyFlat(ChimeraCLI):
     def __init__(self):
         ChimeraCLI.__init__(self, "chimera-skyflat", "SkyFlats", 0.1)
-        self.addHelpGroup("SKYFLAT", "skyFlats")
+
+        skyflatHelp = """
+        Store coeficients in a json file such as
+
+        {"R" : (2000000., 68., 17.), "I" : (2000000., 68., 17.)}
+
+        """
+
+
+        self.addHelpGroup("SKYFLAT", skyflatHelp)
         self.addController(name="skyflat",
                            cls="AutoSkyFlat",
                            required=True,
                            helpGroup="SKYFLAT",
                            help="Auto Sky Flats")
-        self.addParameters(
-            dict(name="sunInitialZD",
-                 long="sunHi",
-                 type="float",
-                 helpGroup="SKYFLAT",
-                 help="Highest Sun altitude",
-                 metavar="FILE"),
-            dict(name="sunFinalZD",
-                 long="sunLow",
-                 type="float",
-                 helpGroup="SKYFLAT",
-                 help="Lowest Sun altitude",
-                 metavar="FILE"))
+        self.addParameters(dict(name="sunInitialZD",
+                                type="float",
+                                default=-5.0,
+                                helpGroup="SKYFLAT",
+                                help="Sun initial altitude"),
+                           dict(name="sunFinalZD",
+                                type="float",
+                                default=-30.0,
+                                helpGroup="SKYFLAT",
+                                help="Sun final altitude"),
+                           dict(name="filter",
+                                type="str",
+                                default="R",
+                                helpGroup="SKYFLAT",
+                                help="Filters to be used. Separate more than one using comma."),
+                           dict(name="initialExptime",
+                                type="str",
+                                default="1.0",
+                                helpGroup="SKYFLAT",
+                                help="Initial exposure time to estimate flatfield level."),
+                           dict(name="pierSide",
+                                type="str",
+                                default="E",
+                                helpGroup="SKYFLAT",
+                                help="Pier side to be used, for German Equatorial-like mounts"),
+                           dict(name="skypar",
+                                type="str",
+                                helpGroup="SKYFLAT",
+                                help="File with sky parameters, one set per line. If not given will use default "
+                                     "values (2000000., 68., 17.)."),
+                           dict(name="debug",
+                                type=ParameterType.BOOLEAN,
+                                default=False,
+                                helpGroup="SKYFLAT",
+                                help="Run action in debug mode?")
+                                )
+
+                 # sunInitialZD = -5.0, sunFinalZD = -30.0,
+                 # filter = 'R',  initialExptime = 1.0,
+                 # pierSide = 'E',
+                 # skypar = (2000000., 68., 17.)
 
     @action(long="auto",
-            help="Does a sequence of sky flats",
+            help="Make a sequence of sky flats",
             helpGroup="SKYFLAT")
     def doSequence(self, options):
         """
@@ -44,16 +83,51 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
         self.out("Pointing scope to the zenith and waiting for the Sun to reach skyflats altitude range")
         if options.sunFinalZD > options.sunInitialZD:
             self.exit("sunHi needs to be less than sunLow")
-        if options.sunInitialZD:
-            self.skyflat["sunInitialZD"] = options.sunInitialZD
-        if options.sunFinalZD:
-            self.skyflat["sunFinalZD"] = options.sunFinalZD
+
         try:
-            self.skyflat.getFlats()
+            # Parsing input options
+            matcher = re.compile('(\w+)(?:,\s+)*')
+            filterList = matcher.findall(options.filter)
+            expTimes = []
+            if type(options.initialExptime) == str and "," in options.initialExptime:
+                for exp in options.initialExptime.split(","):
+                    expTimes.append(float(exp))
+            else:
+                expTimes.append(float(options.initialExptime))
+
+            if len(filterList) != len(expTimes):
+                self.exit("Number of filters and initial exposure times does not match. ")
+
+            skypar = {'R': (2000000., 68., 17.)}
+
+            if options.skypar:
+                with open(options.skypar) as data_file:
+                    skypar = json.load(data_file)
+
+            for ff in filterList:
+                if ff not in skypar.keys():
+                    self.exit("Coefficients for filter %s not in sky parameter list." % ff)
+
+            self.skyflat.getFlats(sunInitialZD=options.sunInitialZD,
+                                  sunFinalZD=options.sunFinalZD,
+                                  filter=filterList,
+                                  initialExptime=expTimes,
+                                  pierSide=options.pierSide,
+                                  skypar=skypar,
+                                  debug=options.debug
+                                  )
         # what is this e for ???
         except CantSetScopeException:
             self.exit("Can't set scope")
         self.out("OK")
+
+    def __abort__(self):
+        self.out("\naborting... ", endl="")
+
+        # copy self.skyflat Proxy because we are running from a differente
+        # thread (yes, Pyro is tricky!)
+        skyflat = copy.copy(self.skyflat)
+        skyflat.abort()
 
 
 

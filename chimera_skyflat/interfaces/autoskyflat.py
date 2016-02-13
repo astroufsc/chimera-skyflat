@@ -49,26 +49,29 @@ class IAutoSkyFlat(Interface):
                   "camera": "/Camera/0",
                   "filterwheel": "/FilterWheel/0",
                   "site": "/Site/0",
-                  "sideOfPier": "E",
-                  "filter": "R",
-                  "sunInitialZD": -5,
-                  "sunFinalZD": -30,
-                  "defaultExptime": 1,
-                  # Coefficients for sky exponential decay
-                  # filter R 20150927
-                  # 4111504.50247 50.6058777823 297.940761798
-                  "Scale": 2000000,
-                  "Slope": 68,
-                  "Bias": 17,
                   "idealCounts": 25000 # this should be a detector property
                   }
 
-    def getFlats(self, debug=False):  #filter, sunInitialZD, sunFinalZD, initialExptime, pierSide):
+    def getFlats(self,
+                 sunInitialZD = -5.0, sunFinalZD = -30.0,
+                 filter = 'R',  initialExptime = 1.0,
+                 pierSide = 'E',
+                 skypar = (2000000., 68., 17.),
+                 debug=False):
         """
-        Takes sequence of flats, starts taking one frame to determine current level
-        Then predicts next exposure time based on exponential decay of sky brightness
-        Creates a list of sunZD, intensity.  It should have the right exponential behavior.
+        Takes sequence of flats. Start taking one frame to determine current level,
+        then predicts next exposure time based on exponential decay of sky brightness,
+        creates a list of sunZD, intensity.  It should have the right exponential behavior.
         If not exponential raise some flag about sky condition.
+
+        :param sunInitialZD: Initial sun altitude
+        :param sunFinalZD: Final sun altitude
+        :param filter:
+        :param initialExptime:
+        :param pierSide: Which side of pier telescope should be positioned?
+        :param skypar:
+        :param debug:
+        :return:
         """
 
     def getSkyLevel(self, exptime=30, debug=False):
