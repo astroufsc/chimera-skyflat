@@ -137,7 +137,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self.log.debug('Sun altitude 0 is {} {} {}'.format(pos.alt.D, sunInitialZD, sunFinalZD))
 
         # while the Sun is above or below the flat field strip we just wait
-        while pos.alt.D > sunInitialZD or pos.alt.D < sunFinalZD:
+        while  sunInitialZD < pos.alt.D < sunFinalZD:
             # FIXME: maybe we should test for pos << self.sunInitialZD K???
             time.sleep(10)
             pos = site.sunpos()
@@ -154,6 +154,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # self.log.debug('Mean: %f'% sky_level)
 
         pos = site.sunpos()
+        exptimeList = np.array(initialExptime)
+
         while sunInitialZD > pos.alt.D > sunFinalZD:
 
             for i in range(len(filter)):
@@ -165,15 +167,15 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 self._startTracking()
                 self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,sunInitialZD,sunFinalZD))
 
-                sky_level = self.getSkyLevel(exptime=initialExptime[i],
+                sky_level = self.getSkyLevel(exptime=exptimeList[i],
                                              filter=filter[i],
                                              sideOfPier=pierSide)
-                initialExptime[i] = self.computeSkyFlatTime(sky_level, pos.alt,
+                exptimeList[i] = self.computeSkyFlatTime(sky_level, pos.alt,
                                                             Scale=skypar[filter[i]][0],
                                                             Slope=skypar[filter[i]][1],
                                                             Bias=skypar[filter[i]][2])
                 self.log.debug("Done")
-                self.log.debug('Exptime = %f' % initialExptime[i])
+                self.log.debug('Exptime = %f' % exptimeList[i])
 
                 if self._abort.isSet():
                     self.log.warning('Aborting!')
@@ -222,7 +224,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             initialTime = initialTime + timedelta(seconds=1)
             altitude = site.sunpos(initialTime).alt
             intTimeSeconds += 1
-            intCounts = intCounts + intensity
+            intCounts += intensity
         self.log.debug( "IntTime, Counts2 {} {}".format(intTimeSeconds,intCounts ))
         return float(intTimeSeconds)
 
