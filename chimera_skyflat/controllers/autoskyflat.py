@@ -189,7 +189,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             initialTime = initialTime + timedelta(seconds=1)
             altitude = site.sunpos(initialTime).alt
             intTimeSeconds += 1
-            intCounts = intCounts + intensity
+            self.log.debug( "IntTime, Counts2 intensity altitude {} {} {} {}".format(intTimeSeconds,intCounts, intensity, altitude.R ))
+            if (intCounts + intensity > self["idealCounts"]):
+                break
+            else:
+                intCounts += intensity
         self.log.debug( "IntTime, Counts2 {} {}".format(intTimeSeconds,intCounts ))
         return float(intTimeSeconds)
 
