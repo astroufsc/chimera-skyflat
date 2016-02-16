@@ -110,8 +110,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
         DOCME
         :type self: object
-        :param sunInitialZD:
-        :param sunFinalZD:
+        :param sunHiAlt:
+        :param sunLowAlt:
         :return:
         """
         # 1 - Wait for the Sun to enter the altitude strip where we can take skyflats
@@ -122,26 +122,26 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # 6 - Goto 2.
         site = self._getSite()
         pos = site.sunpos()
-        #self.log.debug('Sun altitude is %f %f' % pos.alt % self.sunInitialZD)
-        self.log.debug('Sun altitude 0 is {} {} {}'.format(pos.alt.D, self["sunInitialZD"], self["sunFinalZD"]))
+        #self.log.debug('Sun altitude is %f %f' % pos.alt % self.sunHiAlt)
+        self.log.debug('Sun altitude 0 is {} {} {}'.format(pos.alt.D, self["sunHiAlt"], self["sunLowAlt"]))
 
         # while the Sun is above or below the flat field strip we just wait
-        while pos.alt.D > self["sunInitialZD"] or pos.alt.D < self["sunFinalZD"]:
-            # maybe we should test for pos << self.sunInitialZD K???
+        while pos.alt.D > self["sunHiAlt"] or pos.alt.D < self["sunLowAlt"]:
+            # maybe we should test for pos << self.sunHiAlt K???
             time.sleep(10)
             pos = site.sunpos()
-            self.log.debug('Sun altitude 1 is %f %f %f' % (pos.alt.D, self["sunInitialZD"] , self["sunFinalZD"]))
+            self.log.debug('Sun altitude 1 is %f %f %f' % (pos.alt.D, self["sunHiAlt"] , self["sunLowAlt"]))
 
         # while the Sun is IN the flat field strip we take images
-        if self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
+        if self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
             self.log.debug('Taking image...')
             sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
             self.log.debug('Mean: %f'% sky_level)
             pos = site.sunpos()
             self._moveScope()
             self._stopTracking()
-        while self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
-            self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunInitialZD"],self["sunFinalZD"]))
+        while self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
+            self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunHiAlt"],self["sunLowAlt"]))
             expTime = self.computeSkyFlatTime(sky_level, pos.alt)
             self.log.debug("Done")
             self.log.debug('1Exptime = %f'% expTime )
@@ -152,16 +152,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         self._startTracking()
         #
-        # while self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
+        # while self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
         #
         #     self.log.debug('Taking image...')
         #     sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
         #     self.log.debug('Mean: %f'% sky_level)
         #
         #
-        #     self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunInitialZD"],self["sunFinalZD"]))
-        #     while self["sunInitialZD"] > pos.alt.D > self["sunFinalZD"]:
-        #         self.log.debug("Current altitude, sunLow {} {}".format(pos.alt.D, self["sunFinalZD"]))
+        #     self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunHiAlt"],self["sunLowAlt"]))
+        #     while self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
+        #         self.log.debug("Current altitude, sunLow {} {}".format(pos.alt.D, self["sunLowAlt"]))
         #         expTime = self.computeSkyFlatTime(sky_level, pos.alt)
         #         self.log.debug("Done")
         #         self.log.debug('1Exptime = %f'% expTime )
@@ -189,11 +189,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             initialTime = initialTime + timedelta(seconds=1)
             altitude = site.sunpos(initialTime).alt
             intTimeSeconds += 1
-            self.log.debug( "IntTime, Counts2 intensity altitude {} {} {} {}".format(intTimeSeconds,intCounts, intensity, altitude.R ))
+
             if (intCounts + intensity > self["idealCounts"]):
                 break
             else:
                 intCounts += intensity
+            self.log.debug( "IntTime, Counts2 intensity altitude {} {} {} {}".format(intTimeSeconds,intCounts, intensity, altitude.R ))
         self.log.debug( "IntTime, Counts2 {} {}".format(intTimeSeconds,intCounts ))
         return float(intTimeSeconds)
 

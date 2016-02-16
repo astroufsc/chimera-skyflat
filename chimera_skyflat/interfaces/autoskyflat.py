@@ -51,8 +51,8 @@ class IAutoSkyFlat(Interface):
                   "site": "/Site/0",
                   "sideOfPier": "E",
                   "filter": "R",
-                  "sunInitialZD": -5,
-                  "sunFinalZD": -30,
+                  "sunHiAlt": -5,
+                  "sunLowAlt": -30,
                   "defaultExptime": 1,
                   # Coefficients for sky exponential decay
                   # filter R 20150927
@@ -63,7 +63,7 @@ class IAutoSkyFlat(Interface):
                   "idealCounts": 25000 # this should be a detector property
                   }
 
-    def getFlats(self, debug=False):  #filter, sunInitialZD, sunFinalZD, initialExptime, pierSide):
+    def getFlats(self, debug=False):  #filter, sunHiAlt, sunLowAlt, initialExptime, pierSide):
         """
         Takes sequence of flats, starts taking one frame to determine current level
         Then predicts next exposure time based on exponential decay of sky brightness
