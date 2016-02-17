@@ -218,7 +218,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         site = self._getSite()
         intCounts = 0.0
         intTimeSeconds = 0
-        initialTime = datetime.now() # check this K???
+        initialTime = site.ut() #datetime.now() # check this K???
         while intCounts < self["idealCounts"]:
             intensity = self.expArg(altitude.R, Scale, Slope, Bias)
             initialTime = initialTime + timedelta(seconds=1)
