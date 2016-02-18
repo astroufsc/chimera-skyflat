@@ -19,13 +19,12 @@ __author__ = 'kanaan'
 
 from chimera.core.chimeraobject import ChimeraObject
 
-class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
+class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     # normal constructor
     # initialize the relevant variables
     def __init__(self):
         ChimeraObject.__init__(self)
-
 
     def _getSite(self):
         return self.getManager().getProxy(self["site"])
@@ -38,7 +37,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
     def _getFilterWheel(self):
         return self.getManager().getProxy(self["filterwheel"])
-
 
     def _takeImage(self, exptime, filter):
 
@@ -72,7 +70,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         else:
             raise Exception("Could not take an image")
 
-
     def _moveScope(self):
         """
         Moves the scope, usually to zenith
@@ -80,7 +77,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         tel = self._getTel()
         try:
             self.log.debug("Skyflat Slewing scope to zenith")
-            tel.slewToAltAz(Position.fromAltAz(90, 270))
+            tel.slewToAltAz(Position.fromAltAz(self["flat_alt"], self["flat_az"]))
         except:
             self.log.debug("Error moving the telescope")
 
@@ -110,8 +107,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
         DOCME
         :type self: object
-        :param sunHiAlt:
-        :param sunLowAlt:
+        :param sun_alt_hi:
+        :param sun_alt_low:
         :return:
         """
         # 1 - Wait for the Sun to enter the altitude strip where we can take skyflats
@@ -122,58 +119,42 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # 6 - Goto 2.
         site = self._getSite()
         pos = site.sunpos()
-        #self.log.debug('Sun altitude is %f %f' % pos.alt % self.sunHiAlt)
-        self.log.debug('Sun altitude 0 is {} {} {}'.format(pos.alt.D, self["sunHiAlt"], self["sunLowAlt"]))
+        # self.log.debug('Sun altitude is %f %f' % pos.alt % self.sun_alt_hi)
+        self.log.debug(
+            'Starting sky flats Sun altitude is {} {} {}'.format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
         # while the Sun is above or below the flat field strip we just wait
-        while pos.alt.D > self["sunHiAlt"] or pos.alt.D < self["sunLowAlt"]:
-            # maybe we should test for pos << self.sunHiAlt K???
+        while pos.alt.D > self["sun_alt_hi"] or pos.alt.D < self["sun_alt_low"]:
+            # maybe we should test for pos << self.sun_alt_hi K???
             time.sleep(10)
             pos = site.sunpos()
-            self.log.debug('Sun altitude 1 is %f %f %f' % (pos.alt.D, self["sunHiAlt"] , self["sunLowAlt"]))
+            self.log.debug('Sun altitude is %f waiting to be between %f and %f' % (
+            pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
-        # while the Sun is IN the flat field strip we take images
-        if self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
-            self.log.debug('Taking image...')
-            sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
-            self.log.debug('Mean: %f'% sky_level)
-            pos = site.sunpos()
-            self._moveScope()
-            self._stopTracking()
-        while self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
-            self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunHiAlt"],self["sunLowAlt"]))
-            expTime = self.computeSkyFlatTime(sky_level, pos.alt)
-            self.log.debug("Done")
-            self.log.debug('1Exptime = %f'% expTime )
-            self.log.debug('1Taking image...')
+        # now the Sun is in the skyflat altitude strip
+        self.log.debug('Taking image...')
+        sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
+        self.log.debug('Mean: %f' % sky_level)
+        pos = site.sunpos()
+        self._moveScope()  # now that the skyflat time arrived move the telescope
+        self._stopTracking()
+        while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:  # take flats until the Sun is out of the skyflats regions
+            self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
+            expTime = self.computeSkyFlatTime(sky_level)
+            self.log.debug('Taking sky flat image with exptime = %f' % expTime)
             sky_level = self.getSkyLevel(exptime=expTime)
-            self.log.debug('1Mean: %f'% sky_level)
+            self.log.debug('Done taking image, average counts = %f' % sky_level)
             pos = site.sunpos()
+            self.log.debug("{} {} {}".format(pos.alt.D,self["sun_alt_hi"],self["sun_alt_low"]))
+
 
         self._startTracking()
-        #
-        # while self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
-        #
-        #     self.log.debug('Taking image...')
-        #     sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
-        #     self.log.debug('Mean: %f'% sky_level)
-        #
-        #
-        #     self.log.debug( "Initial positions {} {} {}".format(pos.alt.D,self["sunHiAlt"],self["sunLowAlt"]))
-        #     while self["sunHiAlt"] > pos.alt.D > self["sunLowAlt"]:
-        #         self.log.debug("Current altitude, sunLow {} {}".format(pos.alt.D, self["sunLowAlt"]))
-        #         expTime = self.computeSkyFlatTime(sky_level, pos.alt)
-        #         self.log.debug("Done")
-        #         self.log.debug('1Exptime = %f'% expTime )
-        #         self.log.debug('1Taking image...')
-        #         sky_level = self.getSkyLevel(exptime=expTime)
-        #         self.log.debug('1Mean: %f'% sky_level)
 
-    def computeSkyFlatTime(self, sky_level, altitude):
+    def computeSkyFlatTime(self, sky_level):
         """
         User specifies:
         :param sky_level - current level of sky counts
-        :param pos.alt - initial Sun altitude
+        :param pos.alt - initial Sun sun_altitude
         :return exposure time needed to reach sky_level
         Method returns exposureTime
         This computation requires Scale, Slope, Bias
@@ -182,22 +163,23 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         site = self._getSite()
         intCounts = 0.0
-        intTimeSeconds = 0
-        initialTime = datetime.now() # check this K???
-        while intCounts < self["idealCounts"]:
-            intensity = self.expArg(altitude.R, self["Scale"], self["Slope"], self["Bias"])
+        exposure_time = 0
+        initialTime = site.ut()
+        sun_altitude = site.sunpos().alt
+        while 1:
+            sky_counts = self.expArg(sun_altitude.R, self["Scale"], self["Slope"], self["Bias"])
             initialTime = initialTime + timedelta(seconds=1)
-            altitude = site.sunpos(initialTime).alt
-            intTimeSeconds += 1
+            sun_altitude = site.sunpos(initialTime).alt
+            self.log.debug(
+                "Computing exposure time {} sky_counts = {} intCounts = {}".format(initialTime, sky_counts, intCounts))
+            if intCounts + sky_counts >= self["idealCounts"]:
+                self.log.debug("Breaking the Exposure Time Calculation loop. Exposure time {} Computed counts {}"
+                               .format(exposure_time,intCounts))
+                return float(exposure_time)
+            exposure_time += 1
+            intCounts += sky_counts
 
-            if (intCounts + intensity > self["idealCounts"]):
-                break
-            else:
-                intCounts += intensity
-            self.log.debug( "IntTime, Counts2 intensity altitude {} {} {} {}".format(intTimeSeconds,intCounts, intensity, altitude.R ))
-        self.log.debug( "IntTime, Counts2 {} {}".format(intTimeSeconds,intCounts ))
-        return float(intTimeSeconds)
-
+        return float(exposure_time)
 
     def expTime(self, sky_level, altitude):
         """
@@ -215,24 +197,17 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         For now just using median which is almost OK
         """
 
-        self.setSideOfPier("E") # self.sideOfPier)
+        self.setSideOfPier("E")  # self.sideOfPier)
         try:
             filename, image = self._takeImage(exptime=exptime, filter=self["filter"])
             frame = fits.getdata(filename)
             img_mean = np.mean(frame)
             image.close()
-            return(img_mean)
+            return (img_mean)
         except:
             self.log.error("Can't take image")
             raise
 
-
-
-    def expArg(self,x,Scale,Slope,Bias):
-        #print "expArg", x, Scale, Slope, Bias
-        return(Scale * np.exp(Slope * x) + Bias)
-
-
-
-
-
+    def expArg(self, x, Scale, Slope, Bias):
+        # print "expArg", x, Scale, Slope, Bias
+        return (Scale * np.exp(Slope * x) + Bias)

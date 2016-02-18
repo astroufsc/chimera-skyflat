@@ -20,13 +20,13 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
                            helpGroup="SKYFLAT",
                            help="Auto Sky Flats")
         self.addParameters(
-            dict(name="sunHiAlt",
+            dict(name="sun_alt_hi",
                  long="sunHi",
                  type="float",
                  helpGroup="SKYFLAT",
                  help="Highest Sun altitude",
                  metavar="FILE"),
-            dict(name="sunLowAlt",
+            dict(name="sun_alt_low",
                  long="sunLow",
                  type="float",
                  helpGroup="SKYFLAT",
@@ -42,12 +42,12 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
         Take skyflats according to options
         """
         self.out("Pointing scope to the zenith and waiting for the Sun to reach skyflats altitude range")
-        if options.sunLowAlt > options.sunHiAlt:
+        if options.sun_alt_low > options.sun_alt_hi:
             self.exit("sunHi needs to be less than sunLow")
-        if options.sunHiAlt:
-            self.skyflat["sunHiAlt"] = options.sunHiAlt
-        if options.sunLowAlt:
-            self.skyflat["sunLowAlt"] = options.sunLowAlt
+        if options.sun_alt_hi:
+            self.skyflat["sun_alt_hi"] = options.sun_alt_hi
+        if options.sun_alt_low:
+            self.skyflat["sun_alt_low"] = options.sun_alt_low
         try:
             self.skyflat.getFlats()
         # what is this e for ???
