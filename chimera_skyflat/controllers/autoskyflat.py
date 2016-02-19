@@ -1,20 +1,20 @@
 from __future__ import division
+
+import ntpath
 import os
 import threading
+import time
+from datetime import timedelta
+
+import numpy as np
 from astropy.io import fits
 from chimera.controllers.imageserver.util import getImageServer
 from chimera.core.exceptions import ChimeraException
 from chimera.interfaces.camera import Shutter
-from chimera.util.coord import Coord
 from chimera.util.image import ImageUtil
 from chimera.util.position import Position
-import time
-from datetime import datetime, timedelta
+
 from chimera_skyflat.interfaces.autoskyflat import IAutoSkyFlat
-
-import ntpath
-
-import numpy as np
 
 __author__ = 'kanaan'
 

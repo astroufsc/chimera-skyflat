@@ -1,13 +1,10 @@
 #! /usr/bin/env python
-
-
+import copy
 import sys
 
 from chimera.core.cli import ChimeraCLI, action
 from chimera.core.compat import freeze_support
-from chimera.interfaces.pointverify import CanSetScopeButNotThisField, CantSetScopeException
-from chimera.util.astrometrynet import NoSolutionAstrometryNetException
-from chimera.util.astrometrynet import AstrometryNet
+from chimera.interfaces.pointverify import CantSetScopeException
 
 
 class ChimeraAutoSkyFlat(ChimeraCLI):
@@ -62,6 +59,7 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
         # thread (yes, Pyro is tricky!)
         skyflat = copy.copy(self.skyflat)
         skyflat.abort()
+
 
 def main():
     cli = ChimeraAutoSkyFlat()
