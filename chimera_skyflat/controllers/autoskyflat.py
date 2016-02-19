@@ -161,12 +161,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self.log.debug('Mean: %f' % sky_level)
         pos = site.sunpos()
         self._moveScope()  # now that the skyflat time arrived move the telescope
-        self._stopTracking()
+
+
         while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:  # take flats until the Sun is out of the skyflats regions
             self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
             expTime = self.computeSkyFlatTime(sky_level)
             self.log.debug('Taking sky flat image with exptime = %f' % expTime)
+            self._stopTracking() # Stop tracking before exposing
             sky_level = self.getSkyLevel(exptime=expTime)
+            self._startTracking() # restart tracking
+            self._moveScope() # go back to sky flat position
 
             # checking for aborting signal
             if self._abort.isSet():
@@ -176,9 +180,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             self.log.debug('Done taking image, average counts = %f' % sky_level)
             pos = site.sunpos()
             self.log.debug("{} {} {}".format(pos.alt.D,self["sun_alt_hi"],self["sun_alt_low"]))
-
-
-        self._startTracking()
 
     def computeSkyFlatTime(self, sky_level):
         """
