@@ -1,4 +1,5 @@
 from __future__ import division
+import copy
 
 import ntpath
 import os
@@ -9,7 +10,7 @@ from datetime import timedelta
 import numpy as np
 from astropy.io import fits
 from chimera.controllers.imageserver.util import getImageServer
-from chimera.core.exceptions import ChimeraException
+from chimera.core.exceptions import ChimeraException, ProgramExecutionAborted
 from chimera.interfaces.camera import Shutter
 from chimera.util.image import ImageUtil
 from chimera.util.position import Position
@@ -19,6 +20,12 @@ from chimera_skyflat.interfaces.autoskyflat import IAutoSkyFlat
 __author__ = 'kanaan'
 
 from chimera.core.chimeraobject import ChimeraObject
+
+class SkyFlatMaxExptimeReached(ChimeraException):
+    """
+    Raised when exposure time is longer than exptime_max. See config.
+    """
+
 
 
 class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
@@ -51,6 +58,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         frames = cam.expose(exptime=exptime, frames=1, shutter=Shutter.OPEN,
                             filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE")))
         self.log.debug("End frame")
+
+        # checking for aborting signal
+        if self._abort.isSet():
+            self.log.warning('Aborting exposure!')
+            raise ProgramExecutionAborted()
 
         if frames:
             image = frames[0]
@@ -145,7 +157,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         # now the Sun is in the skyflat altitude strip
         self.log.debug('Taking image...')
-        sky_level = self.getSkyLevel(exptime=self["defaultExptime"])
+        sky_level = self.getSkyLevel(exptime=self["exptime_default"])
         self.log.debug('Mean: %f' % sky_level)
         pos = site.sunpos()
         self._moveScope()  # now that the skyflat time arrived move the telescope
@@ -155,6 +167,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             expTime = self.computeSkyFlatTime(sky_level)
             self.log.debug('Taking sky flat image with exptime = %f' % expTime)
             sky_level = self.getSkyLevel(exptime=expTime)
+
+            # checking for aborting signal
+            if self._abort.isSet():
+                self.log.warning('Aborting!')
+                return
+
             self.log.debug('Done taking image, average counts = %f' % sky_level)
             pos = site.sunpos()
             self.log.debug("{} {} {}".format(pos.alt.D,self["sun_alt_hi"],self["sun_alt_low"]))
@@ -190,6 +208,10 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 return float(exposure_time)
             exposure_time += 1
             intCounts += sky_counts
+            if exposure_time > self["exptime_max"]:
+                self.log.warning("Exposure time exceeded limit of {}".format(self["exptime_max"]))
+                return self["exptime_max"]
+                # raise SkyFlatMaxExptimeReached("Exposure time is too long")
 
         return float(exposure_time)
 
@@ -216,16 +238,19 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             img_mean = np.mean(frame)
             image.close()
             return (img_mean)
+        except ProgramExecutionAborted:
+            return
         except:
             self.log.error("Can't take image")
             raise
 
     def abort(self):
         self._abort.set()
+        cam = copy.copy(self._getCam())
+        cam.abortExposure()
 
-    def expArg(self,x,Scale,Slope,Bias):
-        #print "expArg", x, Scale, Slope, Bias
-        return(Scale * np.exp(Slope * x) + Bias)
+    def expArg(self, x, Scale, Slope, Bias):
+        return Scale * np.exp(Slope * x) + Bias
 
 
 

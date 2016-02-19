@@ -55,7 +55,8 @@ class IAutoSkyFlat(Interface):
                   "filter": "R",
                   "sun_alt_hi": -5,
                   "sun_alt_low": -30,
-                  "defaultExptime": 1,
+                  "exptime_default": 1,
+                  "exptime_max": 300,
                   # Coefficients for sky exponential decay
                   # filter R 20150927
                   # 4111504.50247 50.6058777823 297.940761798
