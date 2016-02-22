@@ -9,9 +9,11 @@ from datetime import timedelta
 
 import numpy as np
 from astropy.io import fits
+from chimera.controllers.imageserver.imagerequest import ImageRequest
 from chimera.controllers.imageserver.util import getImageServer
 from chimera.core.exceptions import ChimeraException, ProgramExecutionAborted
 from chimera.interfaces.camera import Shutter
+from chimera.util.coord import Coord
 from chimera.util.image import ImageUtil
 from chimera.util.position import Position
 
@@ -91,6 +93,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         Moves the scope, usually to zenith
         """
         tel = self._getTel()
+        if tel.getPositionAltAz().angsep(Position.fromAltAz(Coord.fromD(self["flat_alt"]),
+                                                            Coord.fromD(self["flat_az"]))).D > self["flat_position_max"]:
+
+            self.log.debug('Telescope is less than {} degrees'.format(self["flat_position_max"]))
+
         try:
             self.log.debug("Skyflat Slewing scope to alt {} az {}".format(self["flat_alt"], self["flat_az"]))
             tel.slewToAltAz(Position.fromAltAz(self["flat_alt"], self["flat_az"]))

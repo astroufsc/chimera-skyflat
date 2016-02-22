@@ -50,6 +50,7 @@ class IAutoSkyFlat(Interface):
                   "filterwheel": "/FilterWheel/0",
                   "site": "/Site/0",
                   "tracking": True,
+                  "flat_position_max": 1,  # degrees
                   "flat_alt": 89,
                   "flat_az": 270,
                   "pier_side": "E",
