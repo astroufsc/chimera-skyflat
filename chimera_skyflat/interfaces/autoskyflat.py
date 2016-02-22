@@ -49,6 +49,7 @@ class IAutoSkyFlat(Interface):
                   "camera": "/Camera/0",
                   "filterwheel": "/FilterWheel/0",
                   "site": "/Site/0",
+                  "tracking": True,
                   "flat_alt": 89,
                   "flat_az": 270,
                   "pier_side": "E",

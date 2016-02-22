@@ -56,7 +56,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             fw.setFilter(filter)
         self.log.debug("Start frame")
         frames = cam.expose(exptime=exptime, frames=1, shutter=Shutter.OPEN,
-                            filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE")))
+                            filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE")),
+                            type='sky-flat')
         self.log.debug("End frame")
 
         # checking for aborting signal
@@ -85,14 +86,18 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         else:
             raise Exception("Could not take an image")
 
-    def _moveScope(self):
+    def _moveScope(self, tracking=False):
         """
         Moves the scope, usually to zenith
         """
         tel = self._getTel()
         try:
-            self.log.debug("Skyflat Slewing scope to zenith")
+            self.log.debug("Skyflat Slewing scope to alt {} az {}".format(self["flat_alt"], self["flat_az"]))
             tel.slewToAltAz(Position.fromAltAz(self["flat_alt"], self["flat_az"]))
+            if tracking:
+                self._startTracking()
+            else:
+                self._stopTracking()
         except:
             self.log.debug("Error moving the telescope")
 
@@ -137,9 +142,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         site = self._getSite()
         pos = site.sunpos()
-        # self.log.debug('Sun altitude is %f %f' % pos.alt % self.sun_alt_hi)
         self.log.debug(
             'Starting sky flats Sun altitude is {} {} {}'.format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
+
+        # Wait with the telescope in the flat position.
+        self._moveScope(tracking=False)
 
         # while the Sun is above or below the flat field strip we just wait
         while pos.alt.D > self["sun_alt_hi"] or pos.alt.D < self["sun_alt_low"]:
@@ -160,7 +167,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         sky_level = self.getSkyLevel(exptime=self["exptime_default"])
         self.log.debug('Mean: %f' % sky_level)
         pos = site.sunpos()
-        self._moveScope()  # now that the skyflat time arrived move the telescope
+        self._moveScope(tracking=self["tracking"])  # now that the skyflat time arrived move the telescope
 
 
         while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:  # take flats until the Sun is out of the skyflats regions
@@ -177,7 +184,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             self.log.debug('Done taking image, average counts = %f' % sky_level)
             pos = site.sunpos()
             self.log.debug("{} {} {}".format(pos.alt.D,self["sun_alt_hi"],self["sun_alt_low"]))
-            self._moveScope() # After exptime, go back to sky flat position.
+            self._moveScope(tracking=self["tracking"])  # After exptime, go back to sky flat position.
 
     def computeSkyFlatTime(self, sky_level):
         """
