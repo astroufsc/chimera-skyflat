@@ -58,7 +58,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             fw.setFilter(filter)
         self.log.debug("Start frame")
         request = ImageRequest(exptime=exptime, frames=1, shutter=Shutter.OPEN,
-                            filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE")),
+                            filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE-$TIME")),
                             type='sky-flat')
         self.log.debug('ImageRequest: {}'.format(request))
         frames = cam.expose(request)
@@ -177,10 +177,10 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
         # now the Sun is in the skyflat altitude strip
-        self._moveScope(tracking=self["tracking"])  # now that the skyflat time arrived move the telescope
-        self.log.debug('Taking image...')
-        sky_level = self.getSkyLevel(exptime=float(self["exptime_default"]))
-        self.log.debug('Mean: %f' % sky_level)
+        # self._moveScope(tracking=self["tracking"])  # now that the skyflat time arrived move the telescope
+        # self.log.debug('Taking image...')
+        # sky_level = self.getSkyLevel(exptime=float(self["exptime_default"]))
+        # self.log.debug('Mean: %f' % sky_level)
         pos = site.sunpos()
         # self._moveScope(tracking=self["tracking"])  # now that the skyflat time arrived move the telescope
 
@@ -188,7 +188,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:  # take flats until the Sun is out of the skyflats regions
             self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
             self._moveScope(tracking=self["tracking"])  # Go to the skyflat pos and shoot!
-            expTime = self.computeSkyFlatTime(sky_level)
+            expTime = self.computeSkyFlatTime() #sky_level)
 
             if expTime > 0:
                 self.log.debug('Taking sky flat image with exptime = %f' % expTime)
@@ -206,7 +206,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             pos = site.sunpos()
             self.log.debug("{} {} {}".format(pos.alt.D,self["sun_alt_hi"],self["sun_alt_low"]))
 
-    def computeSkyFlatTime(self, sky_level):
+    def computeSkyFlatTime(self): #, sky_level):
         """
         User specifies:
         :param sky_level - current level of sky counts
@@ -220,7 +220,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         site = self._getSite()
         intCounts = 0.0
         exposure_time = 0
-        initialTime = site.ut()
+        initialTime = site.ut() #+ timedelta(seconds=20)
         sun_altitude = site.sunpos().alt
         while 1:
             sky_counts = self.expArg(sun_altitude.R, self["Scale"], self["Slope"], self["Bias"])

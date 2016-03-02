@@ -52,7 +52,7 @@ class IAutoSkyFlat(Interface):
                   "tracking": True,
                   "flat_position_max": 1,  # degrees
                   "flat_alt": 89,
-                  "flat_az": 270,
+                  "flat_az": 78,
                   "pier_side": "E",
                   "filter": "R",
                   "sun_alt_hi": -5,
