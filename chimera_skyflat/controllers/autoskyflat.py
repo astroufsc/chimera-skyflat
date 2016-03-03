@@ -50,7 +50,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     def _getFilterWheel(self):
         return self.getManager().getProxy(self["filterwheel"])
 
-    def _takeImage(self, exptime, filter):
+    def _takeImage(self, exptime, filter, download=False):
 
         cam = self._getCam()
         if self["filterwheel"] is not None:
@@ -72,7 +72,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         if frames:
             image = frames[0]
             image_path = image.filename()
-            if not os.path.exists(image_path):  # If image is on a remote server, donwload it.
+            if download and not os.path.exists(image_path):  # If image is on a remote server, donwload it.
 
                 #  If remote is windows, image_path will be c:\...\image.fits, so use ntpath instead of os.path.
                 if ':\\' in image_path:
@@ -96,9 +96,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
         tel = self._getTel()
         if tel.getPositionAltAz().angsep(Position.fromAltAz(Coord.fromD(self["flat_alt"]),
-                                                            Coord.fromD(self["flat_az"]))).D > self["flat_position_max"]:
+                                                            Coord.fromD(self["flat_az"]))).D < self["flat_position_max"]:
 
-            self.log.debug('Telescope is less than {} degrees'.format(self["flat_position_max"]))
+            self.log.debug(
+                'Telescope is less than {} degrees from flat position. Not moving!'.format(self["flat_position_max"]))
+            if tracking and not tel.isTracking():
+                tel.startTracking()
+            elif not tracking and tel.isTracking():
+                tel.stopTracking()
+
+            return
 
         try:
             self.log.debug("Skyflat Slewing scope to alt {} az {}".format(self["flat_alt"], self["flat_az"]))
@@ -171,7 +178,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 return
 
             # maybe we should test for pos << self.sun_alt_hi K???
-            time.sleep(10)
+            time.sleep(5)
             pos = site.sunpos()
             self.log.debug('Sun altitude is %f waiting to be between %f and %f' % (
             pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
@@ -192,8 +199,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             if expTime > 0:
                 self.log.debug('Taking sky flat image with exptime = %f' % expTime)
-                sky_level = self.getSkyLevel(exptime=expTime)
-                self.log.debug('Done taking image, average counts = %f' % sky_level)
+                filename, image = self._takeImage(exptime=expTime, filter=self["filter"], download=False)
+                # sky_level = self.getSkyLevel(filename, image)
+                # self.log.debug('Done taking image, average counts = %f' % sky_level)
             else:
                 self.log.debug('Exposure time too low. Waiting 5 seconds.')
                 time.sleep(5)
@@ -224,7 +232,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         sun_altitude = site.sunpos().alt
         while 1:
             sky_counts = self.expArg(sun_altitude.R, self["Scale"], self["Slope"], self["Bias"])
-            initialTime = initialTime + timedelta(seconds=1)
+            initialTime = initialTime + timedelta(seconds=float(self["exptime_increment"]))
             sun_altitude = site.sunpos(initialTime).alt
             self.log.debug(
                 "Computing exposure time {} sky_counts = {} intCounts = {}".format(initialTime, sky_counts, intCounts))
@@ -232,7 +240,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 self.log.debug("Breaking the Exposure Time Calculation loop. Exposure time {} Computed counts {}"
                                .format(exposure_time,intCounts))
                 return float(exposure_time)
-            exposure_time += 1
+            exposure_time += float(self["exptime_increment"])
             intCounts += sky_counts
             if exposure_time > self["exptime_max"]:
                 self.log.warning("Exposure time exceeded limit of {}".format(self["exptime_max"]))
@@ -241,34 +249,36 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         return float(exposure_time)
 
-    def expTime(self, sky_level, altitude):
-        """
-        Computes sky level for current altitude
-        Assumes sky_lve
-        :param sky_level:
-        :param altitude:
-        :return:
-        """
+    # def expTime(self, sky_level, altitude):
+    #     """
+    #     Computes sky level for current altitude
+    #     Assumes sky_lve
+    #     :param sky_level:
+    #     :param altitude:
+    #     :return:
+    #     """
 
-    def getSkyLevel(self, exptime, debug=False):
-        """
-        Takes one sky flat and returns average
-        Need to get rid of deviant points, mode is best, but takes too long, using mean for now K???
-        For now just using median which is almost OK
-        """
-
-        self.setSideOfPier("E")  # self.sideOfPier)
-        try:
-            filename, image = self._takeImage(exptime=exptime, filter=self["filter"])
-            frame = fits.getdata(filename)
-            img_mean = np.mean(frame)
-            image.close()
-            return (img_mean)
-        except ProgramExecutionAborted:
-            return
-        except:
-            self.log.error("Can't take image")
-            raise
+    # def getSkyLevel(self, exptime, debug=False):
+    #     """
+    #     Takes one sky flat and returns average
+    #     Need to get rid of deviant points, mode is best, but takes too long, using mean for now K???
+    #     For now just using median which is almost OK
+    #     """
+    #
+    #     img_mean = None
+    #
+    #     self.setSideOfPier("E")  # self.sideOfPier)
+    #     try:
+    #
+    #     frame = fits.getdata(filename)
+    #     img_mean = np.mean(frame)
+    #     image.close()
+    #     return img_mean
+    #     except ProgramExecutionAborted:
+    #         return
+    #     except:
+    #         self.log.error("Can't take image")
+    #         raise
 
     def abort(self):
         self._abort.set()
