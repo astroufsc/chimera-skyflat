@@ -192,7 +192,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # self._moveScope(tracking=self["tracking"])  # now that the skyflat time arrived move the telescope
 
 
-        while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:  # take flats until the Sun is out of the skyflats regions
+        # take flats until the Sun is out of the skyflats altitude
+        while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:
             self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
             self._moveScope(tracking=self["tracking"])  # Go to the skyflat pos and shoot!
             expTime = self.computeSkyFlatTime() #sky_level)
@@ -234,8 +235,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             sky_counts = self.expArg(sun_altitude.R, self["Scale"], self["Slope"], self["Bias"])
             initialTime = initialTime + timedelta(seconds=float(self["exptime_increment"]))
             sun_altitude = site.sunpos(initialTime).alt
-            self.log.debug(
-                "Computing exposure time {} sky_counts = {} intCounts = {}".format(initialTime, sky_counts, intCounts))
+            self.log.debug("Computing exposure time {} sky_counts = {} intCounts = {}".format(initialTime, sky_counts, intCounts))
             if intCounts + sky_counts >= self["idealCounts"]:
                 self.log.debug("Breaking the Exposure Time Calculation loop. Exposure time {} Computed counts {}"
                                .format(exposure_time,intCounts))
