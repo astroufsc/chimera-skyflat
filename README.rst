@@ -10,6 +10,7 @@ Skyflat Principle
 -----------------
 
 This plugin is based on this preprint article: http://arxiv.org/abs/1407.8283
+
 First one should fit an exponential to the counts/second versus altitude plot.
 
 .. image:: docs/skyflatexp_example.png
@@ -22,7 +23,7 @@ Usage
 Install ``chimera-skyflat``, then configure it on chimera.config and create a json file with the exponential paramenters
 on, i.e., ``~/.chimera/skyflats.json``.
 
-Running chimera-skyflats script:
+Running ``chimera-skyflat`` script:
 ::
 
     Usage: chimera-skyflat [options]
@@ -142,4 +143,4 @@ For more information, contact us on chimera's discussion list:
 https://groups.google.com/forum/#!forum/chimera-discuss
 
 Bug reports and patches are welcome and can be sent over our GitHub page:
-https://github.com/astroufsc/chimera-skyflats/
+https://github.com/astroufsc/chimera-skyflat/
