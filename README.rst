@@ -57,7 +57,18 @@ Running chimera-skyflats script:
                             /site-packages/chimera_skyflat/controllers']]
 
 * Example:
-``chimera-skyflat -f R,I -n 3 --auto --sun-hi 0 --sun-lo -12``
+
+::
+
+    $ chimera-skyflat -f R,I -n 3 --auto --sun-hi 0 --sun-lo -12
+    Pointing scope to the zenith and waiting for the Sun to reach skyflats altitude range
+    Filter: R, Skyflat # 1 - Exposure time: 2.20 seconds - Counts: 1000.00
+    Filter: R, Skyflat # 2 - Exposure time: 16.60 seconds - Counts: 1000.00
+    Filter: R, Skyflat # 3 - Exposure time: 15.20 seconds - Counts: 1000.00
+    Filter: I, Skyflat # 1 - Exposure time: 0.40 seconds - Counts: 1000.00
+    Filter: I, Skyflat # 2 - Exposure time: 5.40 seconds - Counts: 1000.00
+    Filter: I, Skyflat # 3 - Exposure time: 5.60 seconds - Counts: 1000.00
+    Finished.
 
 takes 3 skyflats on filters ``R`` and ``I`` if the sun is between 0 a -12 degrees of altitude.
 
@@ -77,9 +88,26 @@ Configuration example to be added on ``chimera.config`` file:
 
 ::
 
-    instrument:
-        name: model
-        type: Example
+    controllers:
+        - type: AutoSkyFlat
+          name: autoskyflat
+          site: /Site/0
+          telescope: /Telescope/0
+          camera: /Camera/0
+          filterwheel: /FilterWheel/0
+          dome: /Dome/0
+          tracking: True                     # Enable telescope tracking when exposing?
+          flat_position_max: 1               # If telescope less than flat_position_max it does not move prior to expose. (degrees)
+          flat_alt: 89                       # Skyflat position - Altitude. (degrees)
+          flat_az: 78                        # Skyflat position - Azimuth. (degrees)
+          pier_side: TelescopePierSide.EAST  # Pier Side to take Skyflat
+          sun_alt_hi: -5                     # Lowest Sun Altitude to make Skyflats. (degrees)
+          sun_alt_low: -30                   # Highest Sun Altitude to make Skyflats. (degrees)
+          exptime_increment: 0.2             # Exposure time increment on integration. (seconds)
+          exptime_max: 300                   # Maximum exposure time. (seconds)
+          idealCounts: 25000                 # Ideal flat CCD counts.
+          coefficients_file: ~/.chimera/skyflats.json
+
 
 ``skyflats.json`` file example:
 
