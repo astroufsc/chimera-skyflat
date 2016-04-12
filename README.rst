@@ -6,6 +6,16 @@ https://github.com/astroufsc/chimera.
 
 Makes skyflatting easier and less stressful :smiley:
 
+Skyflat Principle
+-----------------
+
+This plugin is based on this preprint article: http://arxiv.org/abs/1407.8283
+First one should fit an exponential to the counts/second versus altitude plot.
+
+.. image:: docs/skyflatexp_example.png
+
+The exponential coefficients are saved on a JSON file as indicated below and the further skyflats are taken automatically.
+
 Usage
 -----
 
