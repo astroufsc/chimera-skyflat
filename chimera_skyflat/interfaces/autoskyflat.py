@@ -1,3 +1,6 @@
+from chimera.core import SYSTEM_CONFIG_DIRECTORY
+from chimera.interfaces.telescope import TelescopePierSide
+
 __author__ = 'kanaan'
 
 #! /usr/bin/env python
@@ -46,30 +49,24 @@ Target = Enum("CURRENT", "AUTO")
 class IAutoSkyFlat(Interface):
 
     __config__ = {"telescope": "/Telescope/0",
+                  "dome": "/Dome/0",
                   "camera": "/Camera/0",
                   "filterwheel": "/FilterWheel/0",
                   "site": "/Site/0",
-                  "tracking": True,
-                  "flat_position_max": 1,  # degrees
-                  "flat_alt": 89,
-                  "flat_az": 78,
-                  "pier_side": "E",
-                  "filter": "R",
-                  "sun_alt_hi": -5,
-                  "sun_alt_low": -30,
-                  "exptime_default": 1,
-                  "exptime_increment": 0.2,
-                  "exptime_max": 300,
-                  # Coefficients for sky exponential decay
-                  # filter R 20150927
-                  # 4111504.50247 50.6058777823 297.940761798
-                  "Scale": 2000000,
-                  "Slope": 68,
-                  "Bias": 17,
-                  "idealCounts": 25000 # this should be a detector property
+                  "tracking": True,                     # Enable telescope tracking when exposing?
+                  "flat_position_max": 1,               # If telescope less than flat_position_max, it does not move prior to expose. (degrees)
+                  "flat_alt": 89,                       # Skyflat position - Altitude. (degrees)
+                  "flat_az": 78,                        # Skyflat position - Azimuth. (degrees)
+                  "pier_side": TelescopePierSide.EAST,  # Pier Side to take Skyflat
+                  "sun_alt_hi": -5,                     # Lowest Sun Altitude to make Skyflats. (degrees)
+                  "sun_alt_low": -30,                   # Highest Sun Altitude to make Skyflats. (degrees)
+                  "exptime_increment": 0.2,             # Exposure time increment on integration. (seconds)
+                  "exptime_max": 300,                   # Maximum exposure time. (seconds)
+                  "idealCounts": 25000,                 # Ideal flat CCD counts.
+                  "coefficients_file": "%s/skyflats.json" % SYSTEM_CONFIG_DIRECTORY
                   }
 
-    def getFlats(self, debug=False):  #filter, sun_alt_hi, sun_alt_low, initialExptime, pierSide):
+    def getFlats(self, filter_id, n_flats):
         """
         Takes sequence of flats, starts taking one frame to determine current level
         Then predicts next exposure time based on exponential decay of sky brightness
@@ -77,25 +74,7 @@ class IAutoSkyFlat(Interface):
         If not exponential raise some flag about sky condition.
         """
 
-    def getSkyLevel(self, exptime=30, debug=False):
+    def getSkyLevel(self, filename, image):
         """
-        Takes one sky flat to get current sky counts
+        Returns average level from image
         """
-
-    def nextFlatET(self, debug=False):
-        """
-        Computes exposure time for next exposure
-        """
-
-    def setSideOfPier(self, sideOfPier="E", debug=False):
-        """
-        Puts telescope on right side of pier
-        """
-
-    # """
-    # @event
-    # def pointComplete(self, position, star, frame):
-    #     """Raised after every step in the focus sequence with
-    #     information about the last step.
-    #     """
-    # """

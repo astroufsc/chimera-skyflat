@@ -4,7 +4,7 @@ chimera-skyflat plugin
 This is a template plugin for the chimera observatory control system
 https://github.com/astroufsc/chimera.
 
-Makes skyflatting easier and less stressful :-)
+Makes skyflatting easier and less stressful :smiley:
 
 Usage
 -----

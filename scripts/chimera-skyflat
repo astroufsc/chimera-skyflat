@@ -1,10 +1,10 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 import copy
 import sys
 
+from chimera.core.callback import callback
 from chimera.core.cli import ChimeraCLI, action
 from chimera.core.compat import freeze_support
-from chimera.interfaces.pointverify import CantSetScopeException
 
 
 class ChimeraAutoSkyFlat(ChimeraCLI):
@@ -17,22 +17,15 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
                            helpGroup="SKYFLAT",
                            help="Auto Sky Flats")
         self.addParameters(
-            dict(name="sun_alt_hi",
-                 long="sunHi",
-                 type="float",
-                 helpGroup="SKYFLAT",
-                 help="Highest Sun altitude",
+            dict(name="sun_alt_hi", long="sun-high", type="float", helpGroup="SKYFLAT", help="Highest Sun altitude",
                  metavar="FILE"),
-            dict(name="sun_alt_low",
-                 long="sunLow",
-                 type="float",
-                 helpGroup="SKYFLAT",
-                 help="Lowest Sun altitude",
-                 metavar="FILE"))
+            dict(name="sun_alt_low", long="sun-low", type="float", helpGroup="SKYFLAT", help="Lowest Sun altitude",
+                 metavar="FILE"),
+            dict(name='filter', long='filter', short='f', required=True, type='string', helpGroup='SKYFLAT', help='Skyflat filter name'),
+            dict(name='number', long='number', short='n', type='int', helpGroup='SKYFLAT', help='Number of skyflats to take on the filter')
+        )
 
-    @action(long="auto",
-            help="Does a sequence of sky flats",
-            helpGroup="SKYFLAT")
+    @action(long="auto", help="Does a sequence of sky flats", helpGroup="SKYFLAT")
     def doSequence(self, options):
         """
         Sets variables using command line options
@@ -45,12 +38,27 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
             self.skyflat["sun_alt_hi"] = options.sun_alt_hi
         if options.sun_alt_low:
             self.skyflat["sun_alt_low"] = options.sun_alt_low
-        try:
-            self.skyflat.getFlats()
-        # what is this e for ???
-        except CantSetScopeException:
-            self.exit("Can't set scope")
-        self.out("OK")
+        if options.number:
+            num = options.number
+        else:
+            num = None
+
+        @callback(self.localManager)
+        def exposeComplete(filter_id, i_flat, exptime, counts):
+            self.out('Filter: %s, Skyflat # %i - Exposure time: %3.2f seconds - Counts: %3.2f' % (filter_id, i_flat, exptime, counts))
+
+        self.skyflat.exposeComplete += exposeComplete
+
+        for filter_id in options.filter.split(','):
+            self.skyflat.getFlats(filter_id, n_flats=num)
+        self.out("Finished.")
+
+        # @callback(self.localManager)
+        # def exposeBegin(request):
+        #     self.out('Taking %i flats on filter %s' % (num, filter_id))
+
+
+
 
     def __abort__(self):
         self.out("\naborting... ", endl="")
