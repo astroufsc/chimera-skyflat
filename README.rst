@@ -1,4 +1,4 @@
-chimera-template plugin
+chimera-skyflats plugin
 =======================
 
 This is a template plugin for the chimera observatory control system
@@ -7,13 +7,57 @@ https://github.com/astroufsc/chimera.
 Usage
 -----
 
-Rename chimera_template for your plugin name. It is important that the plugin
-name must start with chimera\_ to be found by chimera. Instruments and
-controllers must follow the standard ``chimera_(plugin_name)/(instruments|controllers)/(plugin).py``
+Install ``chimera-skyflat``, then configure it on chimera.config and create a json file with the exponential paramenters
+on, i.e., ``~/.chimera/skyflats.json``.
 
-The class inside ``(plugin).py`` should be named Plugin (with CamelCase letters).
+Running chimera-skyflats script:
+::
 
-For more info: https://github.com/astroufsc/chimera/blob/master/docs/site/chimerafordevs.rst#chimera-objects
+    Usage: chimera-skyflat [options]
+
+    Chimera - Observatory Automation System - SkyFlats
+
+    Options:
+      --version             show program's version number and exit
+      -h, --help            show this help message and exit
+      -v, --verbose         Display information while working
+      -q, --quiet           Don't display information while working.
+                            [default=True]
+
+      skyFlats:
+        --auto              Does a sequence of sky flats
+        --skyflat=SKYFLAT   Auto Sky Flats
+        --sun-high=FILE     Highest Sun altitude
+        -n NUMBER, --number=NUMBER
+                            Number of skyflats to take on the filter
+        -f FILTER, --filter=FILTER
+                            Skyflat filter name
+        --sun-low=FILE      Lowest Sun altitude
+
+      Client Configuration:
+        --config=CONFIG     Chimera configuration file to use.
+                            default=/Users/william/.chimera/chimera.config
+                            [default=/Users/william/.chimera/chimera.config]
+        -P PORT, --port=PORT
+                            Port to which the local Chimera instance will listen
+                            to. [default=9000]
+
+      Object Paths:
+        -C PATH, --controllers-dir=PATH
+                            Append PATH to controllers load path. This option
+                            could be setted multiple times to add multiple
+                            directories. [default=['/Users/william/.virtualenvs/ch
+                            imera/lib/python2.7/site-
+                            packages/chimera/controllers',
+                            '/Users/william/.virtualenvs/chimera/lib/python2.7
+                            /site-packages/chimera_pverify/controllers',
+                            '/Users/william/.virtualenvs/chimera/lib/python2.7
+                            /site-packages/chimera_skyflat/controllers']]
+
+* Example:
+``chimera-skyflat -f R,I -n 3 --auto --sun-hi 0 --sun-lo -12``
+
+takes 3 skyflats on filters ``R`` and ``I`` if the sun is between 0 a -12 degrees of altitude.
 
 
 Installation
@@ -27,7 +71,7 @@ Installation
 Configuration Example
 ---------------------
 
-Here goes an example of the configuration to be added on ``chimera.config`` file.
+Configuration example to be added on ``chimera.config`` file:
 
 ::
 
@@ -35,15 +79,20 @@ Here goes an example of the configuration to be added on ``chimera.config`` file
         name: model
         type: Example
 
+``skyflats.json`` file example:
 
-Tested Hardware (for instruments)
----------------------------------
+::
 
-This plugin was tested on these hardware:
+    {
+        "U": [16500, 70, -14],
+        "G": [32002478, 97, 195],
+        "R": [355328, 44, 108],
+        "I": [41222293, 94, -68],
+        "Z": [5985164, 85, 106]
+    }
 
-* Hardware example 1, model 2
-* Hardware example 2, model 3
-
+The coefficients on the list are Scale, Slope and Bias from the equation:
+``counts_per_sec = scale * exp(slope * sun_altitude) + bias``
 
 Contact
 -------
@@ -52,4 +101,4 @@ For more information, contact us on chimera's discussion list:
 https://groups.google.com/forum/#!forum/chimera-discuss
 
 Bug reports and patches are welcome and can be sent over our GitHub page:
-https://github.com/astroufsc/chimera-template/
+https://github.com/astroufsc/chimera-skyflats/
