@@ -1,8 +1,10 @@
-chimera-skyflats plugin
-=======================
+chimera-skyflat plugin
+======================
 
 This is a template plugin for the chimera observatory control system
 https://github.com/astroufsc/chimera.
+
+Makes skyflatting easier and less stressful :-)
 
 Usage
 -----
@@ -92,6 +94,7 @@ Configuration example to be added on ``chimera.config`` file:
     }
 
 The coefficients on the list are Scale, Slope and Bias from the equation:
+
 ``counts_per_sec = scale * exp(slope * sun_altitude) + bias``
 
 Contact
