@@ -57,7 +57,7 @@ class IAutoSkyFlat(Interface):
                   "flat_position_max": 1,               # If telescope less than flat_position_max, it does not move prior to expose. (degrees)
                   "flat_alt": 89,                       # Skyflat position - Altitude. (degrees)
                   "flat_az": 78,                        # Skyflat position - Azimuth. (degrees)
-                  "pier_side": TelescopePierSide.EAST,  # Pier Side to take Skyflat
+                  "pier_side": None,                    # Pier Side to take Skyflat
                   "sun_alt_hi": -5,                     # Lowest Sun Altitude to make Skyflats. (degrees)
                   "sun_alt_low": -30,                   # Highest Sun Altitude to make Skyflats. (degrees)
                   "exptime_increment": 0.2,             # Exposure time increment on integration. (seconds)

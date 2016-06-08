@@ -7,7 +7,6 @@ import re
 import threading
 import time
 from datetime import timedelta
-
 import numpy as np
 from astropy.io import fits
 from chimera.controllers.imageserver.imagerequest import ImageRequest
@@ -19,12 +18,12 @@ from chimera.interfaces.telescope import TelescopePier
 from chimera.util.coord import Coord
 from chimera.util.image import ImageUtil
 from chimera.util.position import Position
-
 from chimera_skyflat.interfaces.autoskyflat import IAutoSkyFlat
 
 __author__ = 'kanaan'
 
 from chimera.core.chimeraobject import ChimeraObject
+
 
 class SkyFlatMaxExptimeReached(ChimeraException):
     """
@@ -102,8 +101,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         tel = self._getTel()
         site = self._getSite()
         self.log.debug('Moving scope to alt %s az %s.' % (self["flat_alt"], self["flat_az"]))
-        if tel.getPositionAltAz().angsep(Position.fromAltAz(Coord.fromD(self["flat_alt"]),
-                                                            Coord.fromD(self["flat_az"]))).D < self["flat_position_max"]:
+        if tel.getPositionAltAz().angsep(
+                Position.fromAltAz(Coord.fromD(self["flat_alt"]), Coord.fromD(self["flat_az"]))).D < self["flat_position_max"]:
 
             self.log.debug(
                 'Telescope is less than {} degrees from flat position. Not moving!'.format(self["flat_position_max"]))
@@ -216,7 +215,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
             self._moveScope(tracking=self["tracking"])  # Go to the skyflat pos and shoot!
-            expTime, sky_level_expected = self.computeSkyFlatTime(correction_factor) #sky_level)
+            aux = self.computeSkyFlatTime(correction_factor)
+            if aux:
+                expTime, sky_level_expected = aux
+            else:
+                return
 
             if expTime > 0:
                 self.log.debug('Taking sky flat image with exptime = %f' % expTime)
@@ -225,7 +228,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
                 sky_level = self.getSkyLevel(filename, image)
                 self.exposeComplete(filter_id, i_flat, expTime, sky_level)
-                correction_factor += sky_level/expTime - sky_level_expected/expTime
+                correction_factor += sky_level / expTime - sky_level_expected / expTime
                 self.log.debug('Done taking image, average counts = %f. '
                                'New correction factor = %f' % (sky_level, correction_factor))
 
@@ -256,7 +259,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         initialTime = site.ut()
         sun_altitude = site.sunpos().alt
         while 1:
-            sky_counts = (self.expArg(sun_altitude.R, self.scale, self.slope, self.bias) + correction_factor) * self['exptime_increment']
+            sky_counts = (self.expArg(sun_altitude.R, self.scale, self.slope, self.bias) + correction_factor) * self[
+                'exptime_increment']
             initialTime = initialTime + timedelta(seconds=float(self["exptime_increment"]))
             sun_altitude = site.sunpos(initialTime).alt
 
@@ -270,8 +274,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             if exposure_time > self["exptime_max"]:
                 self.log.debug("Computed exposure: Sun Altitude {} time {} sky_counts = {}"
                                " intCounts = {}".format(sun_altitude.D, initialTime, sky_counts, intCounts))
-                self.log.warning("Exposure time exceeded limit of {}".format(self["exptime_max"]))
-                return self["exptime_max"], 0
+                self.log.warning(
+                    "Exposure time exceeded limit of {}. Finishing this filter...".format(self["exptime_max"]))
+                return False
 
         return float(exposure_time), intCounts
 
@@ -310,8 +315,3 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     @staticmethod
     def expArg(x, Scale, Slope, Bias):
         return Scale * np.exp(Slope * x) + Bias
-
-
-
-
-
