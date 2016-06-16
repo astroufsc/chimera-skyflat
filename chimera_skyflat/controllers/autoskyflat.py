@@ -274,9 +274,15 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             if exposure_time > self["exptime_max"]:
                 self.log.debug("Computed exposure: Sun Altitude {} time {} sky_counts = {}"
                                " intCounts = {}".format(sun_altitude.D, initialTime, sky_counts, intCounts))
-                self.log.warning(
-                    "Exposure time exceeded limit of {}. Finishing this filter...".format(self["exptime_max"]))
-                return False
+                # dusk
+                if site.localtime() > 12:
+                    self.log.warning(
+                        "Exposure time exceeded limit of {}. Finishing this filter...".format(self["exptime_max"]))
+                    return False
+                else:  # dawn
+                    self.log.warning(
+                        "Exposure time exceeded limit of {}. Waiting 5 sec...".format(self["exptime_max"]))
+                    time.sleep(5)
 
         return float(exposure_time), intCounts
 
