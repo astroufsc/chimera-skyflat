@@ -53,6 +53,8 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
             self.skyflat.getFlats(filter_id, n_flats=num)
         self.out("Finished.")
 
+        self.skyflat.exposeComplete -= exposeComplete
+
         # @callback(self.localManager)
         # def exposeBegin(request):
         #     self.out('Taking %i flats on filter %s' % (num, filter_id))
