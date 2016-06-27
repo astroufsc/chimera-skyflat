@@ -184,6 +184,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self.log.debug('Starting dome track.')
         self._getDome().track()
 
+        self.log.debug('Moving to filter {}.'.format(filter_id))
+        if self["filterwheel"] is not None:
+            fw = self._getFilterWheel()
+            fw.setFilter(filter_id)
+
         # Wait with the telescope in the flat position.
         self._moveScope(tracking=False, pierSide=self['pier_side'])
 
