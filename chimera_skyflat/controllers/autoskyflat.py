@@ -210,7 +210,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:
             if i_flat == n_flats:
                 self.log.debug('Done %i flats on filter %s' % (i_flat, filter_id))
-                self._getTel().stopTracking()
+                self._stopTracking()
                 return
 
             self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
@@ -219,6 +219,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             if aux:
                 expTime, sky_level_expected = aux
             else:
+                self._stopTracking()
                 return
 
             if expTime > 0:
