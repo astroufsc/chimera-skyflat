@@ -239,8 +239,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                                'New correction factor = %f' % (sky_level, correction_factor))
 
             else:
-                self.log.debug('Exposure time too low. Waiting 5 seconds.')
-                time.sleep(5)
+                # dusk
+                if site.localtime().hour > 12:
+                    self.log.debug('Exposure time too low. Waiting 5 seconds.')
+                    time.sleep(5)
+                # dawn
+                else:
+                    self.log.debug('Exposure time too low. Finishing this filter...')
+                    self._stopTracking()
+                    return
+
 
             # checking for aborting signal
             if self._abort.isSet():
