@@ -195,17 +195,25 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # while the Sun is above or below the flat field strip we just wait
         while pos.alt.D > self["sun_alt_hi"] or pos.alt.D < self["sun_alt_low"]:
 
+            # Check if position is outside and return.
+            # dusk
+            if site.localtime > 12 and pos.alt.D < self["sun_alt_low"]:
+                self.log('Finishing flats. Sun position below than {}'.format(self["sun_alt_low"]))
+                return
+            # dawn
+            elif site.localtime < 12 and pos.alt.D > self["sun_alt_hi"]:
+                self.log('Finishing flats. Sun position higher than {}'.format(self["sun_alt_low"]))
+                return
+
             # checking for aborting signal
             if self._abort.isSet():
                 self.log.warning('Aborting!')
                 self._getTel().stopTracking()
                 return
 
-            # maybe we should test for pos << self.sun_alt_hi K???
             time.sleep(5)
             pos = site.sunpos()
-            self.log.debug('Sun altitude is %f waiting to be between %f and %f' % (
-            pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
+            self.log.debug('Sun altitude is %f waiting to be between %f and %f' % (pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
         pos = site.sunpos()
 
