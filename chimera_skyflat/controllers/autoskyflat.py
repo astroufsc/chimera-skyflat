@@ -102,7 +102,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         site = self._getSite()
         self.log.debug('Moving scope to alt %s az %s.' % (self["flat_alt"], self["flat_az"]))
         if tel.getPositionAltAz().angsep(
-                Position.fromAltAz(Coord.fromD(self["flat_alt"]), Coord.fromD(self["flat_az"]))).D < self["flat_position_max"]:
+                Position.fromAltAz(Coord.fromD(self["flat_alt"]), Coord.fromD(self["flat_az"]))).D < self[
+            "flat_position_max"]:
 
             self.log.debug(
                 'Telescope is less than {} degrees from flat position. Not moving!'.format(self["flat_position_max"]))
@@ -172,14 +173,15 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # Read fresh coefficients from file.
         self.scale, self.slope, self.bias = self.readCoefficientsFile(self['coefficients_file'])[filter_id]
         self.log.debug('Skyflat parameters: n_flats = %i, filter = %s, scale = %i, slope = %i, bias = %i' % (
-        n_flats, filter_id, self.scale, self.slope, self.bias))
+            n_flats, filter_id, self.scale, self.slope, self.bias))
 
         self._abort.clear()
 
         site = self._getSite()
         pos = site.sunpos()
         self.log.debug(
-            'Starting sky flats Sun altitude is {}. max: {} min: {}'.format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
+            'Starting sky flats Sun altitude is {}. max: {} min: {}'.format(pos.alt.D, self["sun_alt_hi"],
+                                                                            self["sun_alt_low"]))
 
         self.log.debug('Starting dome track.')
         self._getDome().track()
@@ -198,11 +200,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             # Check if position is outside and return.
             # dusk
             if site.localtime > 12 and pos.alt.D < self["sun_alt_low"]:
-                self.log('Finishing flats. Sun position below than {}'.format(self["sun_alt_low"]))
+                self.log.debug('Finishing flats. Sun position below than {}'.format(self["sun_alt_low"]))
                 return
             # dawn
             elif site.localtime < 12 and pos.alt.D > self["sun_alt_hi"]:
-                self.log('Finishing flats. Sun position higher than {}'.format(self["sun_alt_low"]))
+                self.log.debug('Finishing flats. Sun position higher than {}'.format(self["sun_alt_low"]))
                 return
 
             # checking for aborting signal
@@ -213,7 +215,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             time.sleep(5)
             pos = site.sunpos()
-            self.log.debug('Sun altitude is %f waiting to be between %f and %f' % (pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
+            self.log.debug('Sun altitude is %f waiting to be between %f and %f' % (
+            pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
         pos = site.sunpos()
 
@@ -257,7 +260,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                     self._stopTracking()
                     return
 
-
             # checking for aborting signal
             if self._abort.isSet():
                 self.log.warning('Aborting!')
@@ -265,7 +267,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 return
 
             pos = site.sunpos()
-            self.log.debug("{} {} {}".format(pos.alt.D,self["sun_alt_hi"],self["sun_alt_low"]))
+            self.log.debug("{} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
     def computeSkyFlatTime(self, correction_factor):
         """
