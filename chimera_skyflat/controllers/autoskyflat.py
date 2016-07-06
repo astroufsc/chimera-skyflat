@@ -199,11 +199,11 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             # Check if position is outside and return.
             # dusk
-            if site.localtime > 12 and pos.alt.D < self["sun_alt_low"]:
+            if site.localtime().hour > 12 and pos.alt.D < self["sun_alt_low"]:
                 self.log.debug('Finishing flats. Sun position below than {}'.format(self["sun_alt_low"]))
                 return
             # dawn
-            elif site.localtime < 12 and pos.alt.D > self["sun_alt_hi"]:
+            elif site.localtime().hour < 12 and pos.alt.D > self["sun_alt_hi"]:
                 self.log.debug('Finishing flats. Sun position higher than {}'.format(self["sun_alt_low"]))
                 return
 
