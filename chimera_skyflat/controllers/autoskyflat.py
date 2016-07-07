@@ -301,11 +301,14 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 # dusk
                 if site.localtime().hour > 12:
                     self.log.warning(
-                        "Exposure time exceeded limit of {}. Finishing this filter...".format(self["exptime_max"]))
+                        "Computed exposure time {} exceeded limit of {}. "
+                        "Finishing this filter...".format(exposure_time,
+                                                          self["exptime_max"]))
                     return False
                 else:  # dawn
                     self.log.warning(
-                        "Exposure time exceeded limit of {}. Waiting 5 sec...".format(self["exptime_max"]))
+                        "Computed exposure time {} exceeded limit of {}. Waiting 5 sec...".format(exposure_time,
+                                                                                                  self["exptime_max"]))
                     time.sleep(5)
 
         return float(exposure_time), intCounts
