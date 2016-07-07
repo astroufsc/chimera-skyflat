@@ -269,7 +269,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             pos = site.sunpos()
             self.log.debug("{} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
-    def computeSkyFlatTime(self, correction_factor):
+    def computeSkyFlatTime(self, correction_factor, max_wait_iter = 10):
         """
         :param correction_factor: Additive correction factor for the sky counts exponential
 
@@ -282,6 +282,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         exposure_time = 0
         initialTime = site.ut()
         sun_altitude = site.sunpos().alt
+        n_wait_iter = 0
         while 1:
             sky_counts = (self.expArg(sun_altitude.R, self.scale, self.slope, self.bias) + correction_factor) * self[
                 'exptime_increment']
@@ -305,11 +306,28 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                         "Finishing this filter...".format(exposure_time,
                                                           self["exptime_max"]))
                     return False
+                elif n_wait_iter > max_wait_iter:
+                    self.log.warning("Maximum number of wait iterations reached. Giving up.")
+                    return False
                 else:  # dawn
-                    self.log.warning(
+                    self.log.info(
                         "Computed exposure time {} exceeded limit of {}. Waiting 5 sec...".format(exposure_time,
                                                                                                   self["exptime_max"]))
                     time.sleep(5)
+                    # Reset initalTime and exposure_time
+                    intCounts = 0.0
+                    exposure_time = 0
+                    initialTime = site.ut()
+                    sun_altitude = site.sunpos(initialTime).alt
+                    n_wait_iter += 1
+
+
+
+
+            if self._abort.isSet():
+                self.log.warning('Aborting!')
+                self._getTel().stopTracking()
+                return False
 
         return float(exposure_time), intCounts
 
