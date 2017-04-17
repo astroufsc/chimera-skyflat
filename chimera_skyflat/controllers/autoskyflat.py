@@ -63,7 +63,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self.log.debug("Start frame")
         request = ImageRequest(exptime=exptime, frames=1, shutter=Shutter.OPEN,
                                filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE-$TIME")),
-                               type='sky-flat')
+                               type='sky-flat',
+                               compress_format=self["compress_format"])
         self.log.debug('ImageRequest: {}'.format(request))
         frames = cam.expose(request)
         self.log.debug("End frame")
