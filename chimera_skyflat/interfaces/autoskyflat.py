@@ -62,6 +62,7 @@ class IAutoSkyFlat(Interface):
                   "sun_alt_low": -30,                   # Highest Sun Altitude to make Skyflats. (degrees)
                   "exptime_increment": 0.2,             # Exposure time increment on integration. (seconds)
                   "exptime_max": 300,                   # Maximum exposure time. (seconds)
+                  "max_wait_iter": 100,                 # Maximum number of iterations on wait loop
                   "idealCounts": 25000,                 # Ideal flat CCD counts.
                   "coefficients_file": "%s/skyflats.json" % SYSTEM_CONFIG_DIRECTORY,
                   "compress_format": "NO"
