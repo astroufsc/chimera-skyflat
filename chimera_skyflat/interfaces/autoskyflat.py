@@ -68,7 +68,7 @@ class IAutoSkyFlat(Interface):
                   "compress_format": "NO"
                   }
 
-    def getFlats(self, filter_id, n_flats):
+    def getFlats(self, filter_id, n_flats, request):
         """
         Takes sequence of flats, starts taking one frame to determine current level
         Then predicts next exposure time based on exponential decay of sky brightness

@@ -54,19 +54,21 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     def _getFilterWheel(self):
         return self.getManager().getProxy(self["filterwheel"])
 
-    def _takeImage(self, exptime, filter, download=False):
+    def _takeImage(self, exptime, filter, download=False, request=None):
 
         cam = self._getCam()
         if self["filterwheel"] is not None:
             fw = self._getFilterWheel()
             fw.setFilter(filter)
         self.log.debug("Start frame")
-        request = ImageRequest(exptime=exptime, frames=1, shutter=Shutter.OPEN,
+        imrequest = ImageRequest(exptime=exptime, frames=1, shutter=Shutter.OPEN,
                                filename=os.path.basename(ImageUtil.makeFilename("skyflat-$DATE-$TIME")),
                                type='sky-flat',
                                compress_format=self["compress_format"])
-        self.log.debug('ImageRequest: {}'.format(request))
-        frames = cam.expose(request)
+        if request is not None:
+            imrequest.update(request)
+        self.log.debug('ImageRequest: {}'.format(imrequest))
+        frames = cam.expose(imrequest)
         self.log.debug("End frame")
 
         # checking for aborting signal
@@ -156,7 +158,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         except:
             self.log.debug("Error starting the telescope")
 
-    def getFlats(self, filter_id, n_flats=None):
+    def getFlats(self, filter_id, n_flats=None, request=None):
         """
         Take flats on filter_id filter.
 
@@ -169,6 +171,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         :param filter_id: Filter name to take the Flats
         :param n_flats: Number of flats to take. None for maximum on the sun interval.
+        :param request: Additional keywords to pass to ImageRequest.
         """
 
         # Read fresh coefficients from file.
@@ -241,7 +244,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             if expTime > 0:
                 self.log.debug('Taking sky flat image with exptime = %f' % expTime)
-                filename, image = self._takeImage(exptime=expTime, filter=filter_id, download=True)
+                filename, image = self._takeImage(exptime=expTime, filter=filter_id, download=True, request=request)
                 i_flat += 1
 
                 sky_level = self.getSkyLevel(filename, image)

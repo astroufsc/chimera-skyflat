@@ -22,7 +22,8 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
             dict(name="sun_alt_low", long="sun-low", type="float", helpGroup="SKYFLAT", help="Lowest Sun altitude",
                  metavar="FILE"),
             dict(name='filter', long='filter', short='f', required=True, type='string', helpGroup='SKYFLAT', help='Skyflat filter name'),
-            dict(name='number', long='number', short='n', type='int', helpGroup='SKYFLAT', help='Number of skyflats to take on the filter')
+            dict(name='number', long='number', short='n', type='int', helpGroup='SKYFLAT', help='Number of skyflats to take on the filter'),
+            dict(name="binning", default="1x1", help="Apply the selected binning to all frames", helpGroup="SKYFLAT")
         )
 
     @action(long="auto", help="Does a sequence of sky flats", helpGroup="SKYFLAT")
@@ -49,8 +50,9 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
 
         self.skyflat.exposeComplete += exposeComplete
 
+        request = {"binning": options.binning}
         for filter_id in options.filter.split(','):
-            self.skyflat.getFlats(filter_id, n_flats=num)
+            self.skyflat.getFlats(filter_id, n_flats=num, request=request)
         self.out("Finished.")
 
         self.skyflat.exposeComplete -= exposeComplete
