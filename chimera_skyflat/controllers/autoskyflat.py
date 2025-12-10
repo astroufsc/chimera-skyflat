@@ -1,4 +1,4 @@
-from __future__ import division
+
 import copy
 import json
 import ntpath
@@ -39,26 +39,26 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self._abort = threading.Event()
         self._abort.clear()
 
-    def _getSite(self):
+    def _get_site(self):
         return self.getManager().getProxy(self["site"])
 
-    def _getTel(self):
+    def _get_tel(self):
         return self.getManager().getProxy(self["telescope"])
 
-    def _getDome(self):
+    def _get_dome(self):
         return self.getManager().getProxy(self["dome"])
 
-    def _getCam(self):
+    def _get_cam(self):
         return self.getManager().getProxy(self["camera"])
 
-    def _getFilterWheel(self):
+    def _get_filter_wheel(self):
         return self.getManager().getProxy(self["filterwheel"])
 
-    def _takeImage(self, exptime, filter, download=False, request=None):
+    def _take_image(self, exptime, filter, download=False, request=None):
 
-        cam = self._getCam()
+        cam = self._get_cam()
         if self["filterwheel"] is not None:
-            fw = self._getFilterWheel()
+            fw = self._get_filter_wheel()
             fw.setFilter(filter)
         self.log.debug("Start frame")
         imrequest = ImageRequest(exptime=exptime, frames=1, shutter=Shutter.OPEN,
@@ -97,12 +97,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         else:
             raise Exception("Could not take an image")
 
-    def _moveScope(self, tracking=False, pierSide=None):
+    def _move_scope(self, tracking=False, pierSide=None):
         """
         Moves the scope, usually to zenith
         """
-        tel = self._getTel()
-        site = self._getSite()
+        tel = self._get_tel()
+        site = self._get_site()
         self.log.debug('Moving scope to alt %s az %s.' % (self["flat_alt"], self["flat_az"]))
         if tel.getPositionAltAz().angsep(
                 Position.fromAltAz(Coord.fromD(self["flat_alt"]), Coord.fromD(self["flat_az"]))).D < self[
@@ -126,28 +126,28 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                                                                      Coord.fromD(self["flat_az"])),
                                                   site['latitude'], site.LST()))
             if tracking:
-                self._startTracking()
+                self._start_tracking()
             else:
-                self._stopTracking()
+                self._stop_tracking()
         except:
             self.log.debug("Error moving the telescope")
 
-    def _stopTracking(self):
+    def _stop_tracking(self):
         """
         disables telescope tracking
         """
-        tel = self._getTel()
+        tel = self._get_tel()
         try:
             self.log.debug("Skyflat is stopping telescope tracking")
             tel.stopTracking()
         except:
             self.log.debug("Error stopping the telescope")
 
-    def _startTracking(self, wait=True):
+    def _start_tracking(self, wait=True):
         """
         enables telescope tracking
         """
-        tel = self._getTel()
+        tel = self._get_tel()
         try:
             self.log.debug("Skyflat is restarting telescope tracking")
             tel.startTracking()
@@ -158,7 +158,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         except:
             self.log.debug("Error starting the telescope")
 
-    def getFlats(self, filter_id, n_flats=None, request=None):
+    def get_flats(self, filter_id, n_flats=None, request=None):
         """
         Take flats on filter_id filter.
 
@@ -175,28 +175,28 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
 
         # Read fresh coefficients from file.
-        self.scale, self.slope, self.bias = self.readCoefficientsFile(self['coefficients_file'])[filter_id]
+        self.scale, self.slope, self.bias = self.read_coefficients_file(self['coefficients_file'])[filter_id]
         self.log.debug('Skyflat parameters: n_flats = %i, filter = %s, scale = %i, slope = %i, bias = %i' % (
             n_flats, filter_id, self.scale, self.slope, self.bias))
 
         self._abort.clear()
 
-        site = self._getSite()
+        site = self._get_site()
         pos = site.sunpos()
         self.log.debug(
             'Starting sky flats Sun altitude is {}. max: {} min: {}'.format(pos.alt.D, self["sun_alt_hi"],
                                                                             self["sun_alt_low"]))
 
         self.log.debug('Starting dome track.')
-        self._getDome().track()
+        self._get_dome().track()
 
         self.log.debug('Moving to filter {}.'.format(filter_id))
         if self["filterwheel"] is not None:
-            fw = self._getFilterWheel()
+            fw = self._get_filter_wheel()
             fw.setFilter(filter_id)
 
         # Wait with the telescope in the flat position.
-        self._moveScope(tracking=False, pierSide=self['pier_side'])
+        self._move_scope(tracking=False, pierSide=self['pier_side'])
 
         # while the Sun is above or below the flat field strip we just wait
         while pos.alt.D > self["sun_alt_hi"] or pos.alt.D < self["sun_alt_low"]:
@@ -230,25 +230,25 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         while self["sun_alt_hi"] > pos.alt.D > self["sun_alt_low"]:
             if i_flat == n_flats:
                 self.log.debug('Done %i flats on filter %s' % (i_flat, filter_id))
-                self._stopTracking()
+                self._stop_tracking()
                 return
 
             self.log.debug("Initial positions {} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
-            self._moveScope(tracking=self["tracking"])  # Go to the skyflat pos and shoot!
-            aux = self.computeSkyFlatTime(correction_factor)
+            self._move_scope(tracking=self["tracking"])  # Go to the skyflat pos and shoot!
+            aux = self.compute_sky_flat_time(correction_factor)
             if aux:
                 expTime, sky_level_expected = aux
             else:
-                self._stopTracking()
+                self._stop_tracking()
                 return
 
             if expTime > 0:
                 self.log.debug('Taking sky flat image with exptime = %f' % expTime)
-                filename, image = self._takeImage(exptime=expTime, filter=filter_id, download=True, request=request)
+                filename, image = self._take_image(exptime=expTime, filter=filter_id, download=True, request=request)
                 i_flat += 1
 
-                sky_level = self.getSkyLevel(filename, image)
-                self.exposeComplete(filter_id, i_flat, expTime, sky_level)
+                sky_level = self.get_sky_level(filename, image)
+                self.expose_complete(filter_id, i_flat, expTime, sky_level)
                 correction_factor += sky_level / expTime - sky_level_expected / expTime
                 self.log.debug('Done taking image, average counts = %f. '
                                'New correction factor = %f' % (sky_level, correction_factor))
@@ -261,7 +261,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 # dawn
                 else:
                     self.log.debug('Exposure time too low. Finishing this filter...')
-                    self._stopTracking()
+                    self._stop_tracking()
                     return
 
             # checking for aborting signal
@@ -273,7 +273,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             pos = site.sunpos()
             self.log.debug("{} {} {}".format(pos.alt.D, self["sun_alt_hi"], self["sun_alt_low"]))
 
-    def computeSkyFlatTime(self, correction_factor):
+    def compute_sky_flat_time(self, correction_factor):
         """
         :param correction_factor: Additive correction factor for the sky counts exponential
 
@@ -281,14 +281,14 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         This computation requires self.scale, self.slope and self.bias defined.
         """
 
-        site = self._getSite()
+        site = self._get_site()
         intCounts = 0.0
         exposure_time = 0
         initialTime = site.ut()
         sun_altitude = site.sunpos().alt
         n_wait_iter = 0
         while 1:
-            sky_counts = (self.expArg(sun_altitude.R, self.scale, self.slope, self.bias) + correction_factor) * self[
+            sky_counts = (self.exp_arg(sun_altitude.R, self.scale, self.slope, self.bias) + correction_factor) * self[
                 'exptime_increment']
             initialTime = initialTime + timedelta(seconds=float(self["exptime_increment"]))
             sun_altitude = site.sunpos(initialTime).alt
@@ -330,12 +330,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             if self._abort.isSet():
                 self.log.warning('Aborting!')
-                self._getTel().stopTracking()
+                self._get_tel().stopTracking()
                 return False
 
         return float(exposure_time), intCounts
 
-    def getSkyLevel(self, filename, image):
+    def get_sky_level(self, filename, image):
         """
         Returns average counts from image
         """
@@ -346,7 +346,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
     def abort(self):
         self._abort.set()
-        cam = copy.copy(self._getCam())
+        cam = copy.copy(self._get_cam())
         cam.abortExposure()
 
     # @event
@@ -356,17 +356,17 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     #     '''
 
     @event
-    def exposeComplete(self, filter_id, i_flat, expTime, sky_level):
+    def expose_complete(self, filter_id, i_flat, expTime, sky_level):
         '''
         Called on exposuse completion
         '''
 
     @staticmethod
-    def readCoefficientsFile(filename):
+    def read_coefficients_file(filename):
         with open(filename) as f:
             coefficients = json.loads(re.sub('#(.*)', '', f.read()))
         return coefficients
 
     @staticmethod
-    def expArg(x, Scale, Slope, Bias):
+    def exp_arg(x, Scale, Slope, Bias):
         return Scale * np.exp(Slope * x) + Bias

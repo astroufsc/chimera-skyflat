@@ -1,47 +1,56 @@
+# Python
+__pycache__/
 *.py[cod]
-
-# C extensions
+*$py.class
 *.so
-
-# Packages
-*.egg
-*.egg-info
-dist
-build
-eggs
-parts
-bin
-var
-sdist
-develop-eggs
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
 .installed.cfg
-lib
-lib64
+*.egg
+MANIFEST
 
-# eclipse files
-.settings
-.project
-.pydevproject
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Installer logs
-pip-log.txt
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Unit test / coverage reports
+# Testing
+.pytest_cache/
 .coverage
-.tox
-nosetests.xml
+htmlcov/
+.tox/
+.hypothesis/
 
-#Translations
-*.mo
+# Ruff
+.ruff_cache/
 
-#Mr Developer
-.mr.developer.cfg
+# uv
+uv.lock
 
-#Mac DS_STORE
+# OS
 .DS_Store
-
-#Documentation auxfiles
-doc.pdf
-
-.idea
-.noseids
+Thumbs.db
+.history/

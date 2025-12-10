@@ -2,32 +2,30 @@
 import copy
 import sys
 
-from chimera.core.callback import callback
-from chimera.core.cli import ChimeraCLI, action
-from chimera.core.compat import freeze_support
+from chimera.cli.cli import ChimeraCLI, action
 
 
 class ChimeraAutoSkyFlat(ChimeraCLI):
     def __init__(self):
         ChimeraCLI.__init__(self, "chimera-skyflat", "SkyFlats", 0.1)
-        self.addHelpGroup("SKYFLAT", "skyFlats")
-        self.addController(name="skyflat",
+        self.add_help_group("SKYFLAT", "skyFlats")
+        self.add_controller(name="skyflat",
                            cls="AutoSkyFlat",
                            required=True,
-                           helpGroup="SKYFLAT",
+                           help_group="SKYFLAT",
                            help="Auto Sky Flats")
-        self.addParameters(
-            dict(name="sun_alt_hi", long="sun-high", type="float", helpGroup="SKYFLAT", help="Highest Sun altitude",
+        self.add_parameters(
+            dict(name="sun_alt_hi", long="sun-high", type="float", help_group="SKYFLAT", help="Highest Sun altitude",
                  metavar="FILE"),
-            dict(name="sun_alt_low", long="sun-low", type="float", helpGroup="SKYFLAT", help="Lowest Sun altitude",
+            dict(name="sun_alt_low", long="sun-low", type="float", help_group="SKYFLAT", help="Lowest Sun altitude",
                  metavar="FILE"),
-            dict(name='filter', long='filter', short='f', required=True, type='string', helpGroup='SKYFLAT', help='Skyflat filter name'),
-            dict(name='number', long='number', short='n', type='int', helpGroup='SKYFLAT', help='Number of skyflats to take on the filter'),
-            dict(name="binning", default="1x1", help="Apply the selected binning to all frames", helpGroup="SKYFLAT")
+            dict(name='filter', long='filter', short='f', required=True, type='string', help_group='SKYFLAT', help='Skyflat filter name'),
+            dict(name='number', long='number', short='n', type='int', help_group='SKYFLAT', help='Number of skyflats to take on the filter'),
+            dict(name="binning", default="1x1", help="Apply the selected binning to all frames", help_group="SKYFLAT")
         )
 
-    @action(long="auto", help="Does a sequence of sky flats", helpGroup="SKYFLAT")
-    def doSequence(self, options):
+    @action(long="auto", help="Does a sequence of sky flats", help_group="SKYFLAT")
+    def do_sequence(self, options):
         """
         Sets variables using command line options
         Take skyflats according to options
@@ -44,18 +42,17 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
         else:
             num = None
 
-        @callback(self.localManager)
-        def exposeComplete(filter_id, i_flat, exptime, counts):
+        def expose_complete(filter_id, i_flat, exptime, counts):
             self.out('Filter: %s, Skyflat # %i - Exposure time: %3.2f seconds - Counts: %3.2f' % (filter_id, i_flat, exptime, counts))
 
-        self.skyflat.exposeComplete += exposeComplete
+        self.skyflat.expose_complete += expose_completete
 
         request = {"binning": options.binning}
         for filter_id in options.filter.split(','):
-            self.skyflat.getFlats(filter_id, n_flats=num, request=request)
+            self.skyflat.get_flats(filter_id, n_flats=num, request=request)
         self.out("Finished.")
 
-        self.skyflat.exposeComplete -= exposeComplete
+        self.skyflat.expose_complete -= expose_complete
 
         # @callback(self.localManager)
         # def exposeBegin(request):
@@ -80,5 +77,4 @@ def main():
 
 
 if __name__ == '__main__':
-    freeze_support()
     main()

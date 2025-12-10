@@ -1,5 +1,4 @@
 from chimera.core import SYSTEM_CONFIG_DIRECTORY
-from chimera.interfaces.telescope import TelescopePierSide
 
 __author__ = 'kanaan'
 
@@ -26,7 +25,6 @@ __author__ = 'kanaan'
 
 
 from chimera.core.interface import Interface
-from chimera.core.event import event
 
 from chimera.util.enum import Enum
 from chimera.core.exceptions import ChimeraException
@@ -68,7 +66,7 @@ class IAutoSkyFlat(Interface):
                   "compress_format": "NO"
                   }
 
-    def getFlats(self, filter_id, n_flats, request):
+    def get_flats(self, filter_id, n_flats, request):
         """
         Takes sequence of flats, starts taking one frame to determine current level
         Then predicts next exposure time based on exponential decay of sky brightness
@@ -76,7 +74,7 @@ class IAutoSkyFlat(Interface):
         If not exponential raise some flag about sky condition.
         """
 
-    def getSkyLevel(self, filename, image):
+    def get_sky_level(self, filename, image):
         """
         Returns average level from image
         """
