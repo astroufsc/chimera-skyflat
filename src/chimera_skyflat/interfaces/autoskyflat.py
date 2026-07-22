@@ -61,8 +61,8 @@ class IAutoSkyFlat(Interface):
                   "exptime_increment": 0.2,             # Exposure time increment on integration. (seconds)
                   "exptime_max": 300,                   # Maximum exposure time. (seconds)
                   "max_wait_iter": 100,                 # Maximum number of iterations on wait loop
-                  "idealCounts": 25000,                 # Ideal flat CCD counts.
-                  "coefficients_file": "%s/skyflats.json" % SYSTEM_CONFIG_DIRECTORY,
+                  "ideal_counts": 25000,                 # Ideal flat CCD counts.
+                  "coefficients_file": f"{SYSTEM_CONFIG_DIRECTORY}/skyflat_coefficients.json",
                   "compress_format": "NO"
                   }
 

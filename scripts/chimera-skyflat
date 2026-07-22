@@ -43,9 +43,9 @@ class ChimeraAutoSkyFlat(ChimeraCLI):
             num = None
 
         def expose_complete(filter_id, i_flat, exptime, counts):
-            self.out('Filter: %s, Skyflat # %i - Exposure time: %3.2f seconds - Counts: %3.2f' % (filter_id, i_flat, exptime, counts))
+            self.out(f'Filter: {filter_id}, Skyflat # {i_flat} - Exposure time: {exptime:3.2f} seconds - Counts: {counts:3.2f}')
 
-        self.skyflat.expose_complete += expose_completete
+        self.skyflat.expose_complete += expose_complete
 
         request = {"binning": options.binning}
         for filter_id in options.filter.split(','):
