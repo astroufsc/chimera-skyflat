@@ -379,7 +379,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
 
         frame = fits.getdata(filename)
-        img_mean = np.mean(frame)
+        # plain float: numpy.float64 is not msgspec-serializable, so leaking
+        # it into the expose_complete event silently drops the publication
+        img_mean = float(np.mean(frame))
         return img_mean
 
     def abort(self):
