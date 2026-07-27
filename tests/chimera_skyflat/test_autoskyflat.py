@@ -313,17 +313,31 @@ def test_a_saturated_frame_is_not_published_nor_counted(tmp_path, coefficients_f
 def test_dusk_walks_up_to_a_more_sensitive_filter(tmp_path, coefficients_file):
     flat, _ = build(tmp_path, coefficients_file)
 
-    assert flat._next_filter("V", {"V"}, dusk=True) == "R"
-    assert flat._next_filter("R", {"R", "V"}, dusk=True) == "B"
-    assert flat._next_filter("CLEAR", {"CLEAR"}, dusk=True) is None
+    assert flat._next_filter("V", {"V"}, True, 0.0) == "R"
+    assert flat._next_filter("R", {"R", "V"}, True, 0.0) == "B"
+    assert flat._next_filter("CLEAR", {"CLEAR"}, True, 0.0) is None
 
 
 def test_dawn_walks_down_to_a_less_sensitive_filter(tmp_path, coefficients_file):
     flat, _ = build(tmp_path, coefficients_file)
 
-    assert flat._next_filter("CLEAR", {"CLEAR"}, dusk=False) == "B"
-    assert flat._next_filter("R", {"R", "CLEAR"}, dusk=False) == "V"
-    assert flat._next_filter("HBETA", {"HBETA"}, dusk=False) is None
+    assert flat._next_filter("CLEAR", {"CLEAR"}, False, 0.0) == "B"
+    assert flat._next_filter("R", {"R", "CLEAR"}, False, 0.0) == "V"
+    assert flat._next_filter("HBETA", {"HBETA"}, False, 0.0) is None
+
+
+def test_the_filter_walk_ranks_by_tonight_not_by_the_scale_term(
+    tmp_path, coefficients_file
+):
+    """scale is the rate at sun altitude 0 and the filters cross as
+    twilight fades: B outruns R at sunset and is six times fainter than it
+    at -5. Ranking by scale sends the dusk walk from R to B, i.e. to a
+    LONGER exposure."""
+    flat, _ = build(tmp_path, coefficients_file)
+
+    assert flat._next_filter("R", {"R"}, True, 0.0) == "B"
+    assert flat._next_filter("R", {"R"}, True, -5.0) == "CLEAR"
+    assert flat._next_filter("V", {"V"}, True, -5.0) == "R"
 
 
 def test_a_saturating_filter_at_dawn_steps_down_instead_of_stopping(
@@ -349,7 +363,7 @@ def test_a_saturating_filter_at_dawn_steps_down_instead_of_stopping(
 def test_the_fallback_can_be_turned_off(tmp_path, coefficients_file):
     flat, _ = build(tmp_path, coefficients_file, filter_fallback=False)
 
-    assert flat._next_filter("V", {"V"}, dusk=True) is None
+    assert flat._next_filter("V", {"V"}, True, 0.0) is None
 
 
 def test_an_unknown_filter_is_reported_clearly(tmp_path, coefficients_file):

@@ -461,7 +461,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 # scale (V -> R -> CLEAR) instead of ending the whole
                 # sequence, which used to abandon twilight with filters to
                 # spare. At dawn compute_sky_flat_time waits instead.
-                next_filter = self._next_filter(filter_id, tried_filters, dusk=dusk)
+                next_filter = self._next_filter(filter_id, tried_filters, dusk, sun_alt)
                 if next_filter is None:
                     break
                 self.log.info(
@@ -486,7 +486,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                     continue
                 # at dawn it only gets brighter: step DOWN in sensitivity
                 # (CLEAR -> R -> V) instead of ending the sequence.
-                next_filter = self._next_filter(filter_id, tried_filters, dusk=False)
+                next_filter = self._next_filter(
+                    filter_id, tried_filters, False, sun_alt
+                )
                 if next_filter is None:
                     self.log.info(
                         "Exposure time too low and no less sensitive filter "
@@ -734,28 +736,36 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             coefficients = json.loads(re.sub("#(.*)", "", f.read()))
         return coefficients
 
-    def _next_filter(self, filter_id, tried, dusk=True):
+    def _next_filter(self, filter_id, tried, dusk, sun_alt):
         """The next filter to try when this one cannot reach ideal_counts.
 
-        Sensitivity is the model's own scale term, so the coefficients file
-        already ranks the filters (HBETA < V = I < R < B < CLEAR). At dusk
-        the sky is fading and we need the next MORE sensitive filter (the
-        shortest exposure above the current one); at dawn it is flooding
-        and we need the next LESS sensitive one. Returns None once nothing
-        is left in that direction.
+        Ranked by the rate each filter's model predicts AT THIS sun
+        altitude, not by the scale term: scale is the rate at altitude 0 and
+        the filters cross as twilight fades. In the LNA40 set B outruns R at
+        sunset and is six times fainter than it two degrees later, so a
+        scale ranking sends the dusk walk from R to a filter that needs a
+        LONGER exposure, not a shorter one.
+
+        At dusk the sky is fading and we need the next brighter filter; at
+        dawn it is flooding and we need the next fainter one. Returns None
+        once nothing is left in that direction.
         """
         if not self["filter_fallback"]:
             return None
         coefficients = self._read_coefficients()
-        current = coefficients.get(filter_id)
-        if current is None:
+        if filter_id not in coefficients:
             return None
 
+        def rate(values):
+            scale, slope, bias = (float(value) for value in values[:3])
+            return scale * np.exp(slope * np.radians(sun_alt)) + bias
+
+        rates = {name: rate(values) for name, values in coefficients.items()}
+        current = rates[filter_id]
         candidates = [
-            (values[0], name)
-            for name, values in coefficients.items()
-            if name not in tried
-            and (values[0] > current[0] if dusk else values[0] < current[0])
+            (value, name)
+            for name, value in rates.items()
+            if name not in tried and (value > current if dusk else value < current)
         ]
         if not candidates:
             return None
