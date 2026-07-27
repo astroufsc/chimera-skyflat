@@ -108,8 +108,10 @@ controllers:
       tracking: True             # Enable telescope tracking when exposing?
       flat_position_max: 1       # Skip the slew when the telescope is already this
                                  # close to the flat position; 0 slews every frame. (degrees)
-      flat_alt: 89               # Skyflat position - Altitude. (degrees)
-      flat_az: 78                # Skyflat position - Azimuth. (degrees)
+      flat_anti_sun: True        # Point at the anti-solar azimuth (see below)
+      flat_alt: 75               # Skyflat position - Altitude. (degrees)
+      flat_az: 78                # Skyflat position - Azimuth, only used when
+                                 # flat_anti_sun is False. (degrees)
       pier_side: EAST            # Pier side to take Skyflats on: EAST, WEST or None
       sun_alt_hi: -5             # Highest Sun altitude to make Skyflats. (degrees)
       sun_alt_low: -30           # Lowest Sun altitude to make Skyflats. (degrees)
@@ -143,7 +145,27 @@ The coefficients on the list are Scale, Slope and Bias from the equation:
 
 `counts_per_sec = scale * exp(slope * sun_altitude) + bias`
 
-with the sun altitude **in radians**.
+with the sun altitude **in radians**. The paper's own fit has no additive
+term (`flux = 10^(0.415 * alt_deg + 5.926)`, i.e. a slope of 54.7 per
+radian); keep `bias` at 0 unless you have actually fitted it. A bias that
+was guessed rather than measured becomes the whole model once the sky is
+faint — it puts a floor under the predicted count rate, which pins the
+exposure at `ideal_counts / bias` and stops the controller from ever
+concluding that a filter has run out of sky.
+
+## Where the flats are taken
+
+The twilight sky has a brightness gradient, and it is smallest at the
+**anti-solar point** — that is the whole subject of the paper above. With
+`flat_anti_sun: True` (the default) the controller points at
+`sun_azimuth + 180` at `flat_alt`, recomputed before every frame as the sun
+moves; the paper puts that point at altitude 75. `flat_position_max` decides
+how far the telescope may drift from it before being re-pointed — 0 re-slews
+before every frame, which is closest to the paper's "re-point after 30 s of
+exposure".
+
+Set `flat_anti_sun: False` to shoot at a fixed `flat_az` instead. That is
+only the right place when the sun happens to set behind it.
 
 ## How the exposure time is chosen
 

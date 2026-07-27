@@ -360,6 +360,53 @@ def test_an_unknown_filter_is_reported_clearly(tmp_path, coefficients_file):
 
 
 #
+# where the flats are shot
+#
+
+
+def test_the_flats_are_shot_at_the_anti_solar_point(tmp_path, coefficients_file):
+    """arXiv:1407.8283: the twilight gradient is smallest opposite the sun.
+    A fixed azimuth is only right when the sun sets behind it - at OPD on
+    2026-07-27 the configured az 78 sat 38 degrees off the null point."""
+    flat, fakes = build(tmp_path, coefficients_file, flat_alt=75)
+    fakes["site"].azimuth = 296.0  # sun setting WNW
+
+    altitude, azimuth = flat._flat_position()
+
+    assert altitude == 75
+    assert azimuth == pytest.approx(116.0)
+
+
+def test_the_anti_solar_point_can_be_turned_off(tmp_path, coefficients_file):
+    flat, fakes = build(
+        tmp_path, coefficients_file, flat_anti_sun=False, flat_alt=80, flat_az=78
+    )
+    fakes["site"].azimuth = 296.0
+
+    assert flat._flat_position() == (80.0, 78.0)
+
+
+def test_the_scope_follows_the_anti_solar_point_as_the_sun_moves(
+    tmp_path, coefficients_file
+):
+    """The target moves while the set runs, so the re-slew check has to
+    measure against today's null point, not against a fixed pair."""
+    flat, fakes = build(tmp_path, coefficients_file, flat_alt=75, flat_position_max=1)
+    fakes["site"].azimuth = 296.0
+    telescope = fakes["telescope"]
+    telescope.alt, telescope.az = flat._flat_position()
+
+    assert telescope.slews == 0
+    # ten degrees of azimuth at altitude 75 is 2.6 degrees on the sky, past
+    # the tolerance; near the zenith the same ten degrees would not be
+    fakes["site"].azimuth = 306.0
+    flat._move_scope()
+
+    assert telescope.slews == 1
+    assert telescope.az == pytest.approx(126.0)
+
+
+#
 # window, aborts and re-entrancy
 #
 
@@ -481,12 +528,17 @@ def test_the_flat_position_check_is_a_great_circle_distance(
     Position it calls two points 2 degrees apart at the zenith 180 degrees
     apart - and every frame would re-slew."""
     flat, fakes = build(
-        tmp_path, coefficients_file, flat_alt=89, flat_az=0, flat_position_max=3
+        tmp_path,
+        coefficients_file,
+        flat_alt=89,
+        flat_az=0,
+        flat_anti_sun=False,
+        flat_position_max=3,
     )
     telescope = fakes["telescope"]
 
     telescope.alt, telescope.az = 89, 180  # 2 degrees away over the pole
-    assert flat._at_flat_position(telescope)
+    assert flat._at_flat_position(telescope, 89, 0)
 
     telescope.alt, telescope.az = 85, 180  # 6 degrees away
-    assert not flat._at_flat_position(telescope)
+    assert not flat._at_flat_position(telescope, 89, 0)

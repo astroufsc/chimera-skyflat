@@ -39,9 +39,15 @@ class IAutoSkyFlat(Interface):
         # Skip the slew when the telescope is already this close to the flat
         # position (degrees). 0 to slew before every frame.
         "flat_position_max": 1,
-        # Skyflat position - Altitude. (degrees)
+        # Skyflat position - Altitude. arXiv:1407.8283 puts the null point
+        # of the twilight gradient at 75. (degrees)
         "flat_alt": 89,
-        # Skyflat position - Azimuth. (degrees)
+        # Point at the ANTI-SOLAR azimuth (sun azimuth + 180), where the
+        # twilight sky gradient is smallest. False shoots at flat_az below,
+        # which is only the right place when the sun sets behind it.
+        "flat_anti_sun": True,
+        # Skyflat position - Azimuth, used when flat_anti_sun is False.
+        # (degrees)
         "flat_az": 78,
         # Pier side to take Skyflats on: "EAST", "WEST" or None to leave it
         # to the telescope.

@@ -59,10 +59,11 @@ class ClockEvent(threading.Event):
 class FakeSite:
     """Sun altitude linear in time, which is what twilight looks like."""
 
-    def __init__(self, clock, alt0=-2.0, rate=-0.004):
+    def __init__(self, clock, alt0=-2.0, rate=-0.004, azimuth=300.0):
         self.clock = clock
         self.alt0 = alt0
         self.rate = rate
+        self.azimuth = azimuth
         self._t0 = clock.now
         self.sunpos_calls = 0
 
@@ -76,7 +77,7 @@ class FakeSite:
     def sunpos(self, date=None):
         self.sunpos_calls += 1
         return Position.from_alt_az(
-            Coord.from_d(self.altitude(date)), Coord.from_d(180.0)
+            Coord.from_d(self.altitude(date)), Coord.from_d(self.azimuth)
         )
 
     # -- astroufsc/chimera#275 ------------------------------------------
@@ -84,6 +85,9 @@ class FakeSite:
     def sun_altitude(self, date=None):
         self.sunpos_calls += 1
         return self.altitude(date)
+
+    def sun_azimuth(self, date=None):
+        return self.azimuth
 
     def is_dusk(self, date=None):
         return self.rate < 0
@@ -94,6 +98,9 @@ class LegacyFakeSite(FakeSite):
 
     def sun_altitude(self, date=None):
         raise AttributeError("sun_altitude")
+
+    def sun_azimuth(self, date=None):
+        raise AttributeError("sun_azimuth")
 
     def is_dusk(self, date=None):
         raise AttributeError("is_dusk")
