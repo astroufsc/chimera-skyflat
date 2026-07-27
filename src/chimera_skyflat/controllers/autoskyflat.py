@@ -16,6 +16,7 @@ from chimera.core.event import event
 from chimera.core.exceptions import ChimeraException, ProgramExecutionAborted
 from chimera.interfaces.camera import Shutter
 from chimera.interfaces.telescope import TelescopePierSide
+from chimera.util.coord import CoordUtil
 from chimera.util.image import Image, ImageUtil
 
 from chimera_skyflat.interfaces.autoskyflat import IAutoSkyFlat
@@ -64,6 +65,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         # the scheduler has been seen forking duplicate programs
         self._run_lock = threading.Lock()
         self.scale = self.slope = self.bias = None
+        # the coefficients file, read once per run (see _get_flats)
+        self._coefficients = None
 
     #
     # proxies
@@ -80,9 +83,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
     def _get_site(self):
         return self.get_proxy(self["site"])
-
-    def _get_dome(self):
-        return self.get_proxy(self["dome"])
 
     #
     # sun
@@ -103,20 +103,15 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             altitude = sunpos[0] if isinstance(sunpos, tuple | list) else sunpos
         return float(altitude)
 
-    def _sun_altitude(self, date=None):
-        """Current sun altitude in degrees."""
-        site = self._get_site()
-        return self._altitude_in_degrees(
-            site.sunpos() if date is None else site.sunpos(date)
-        )
-
     def _sun_track(self):
         """(altitude now [deg], rate [deg/s]) from two sun positions.
 
-        The rate's sign is also how dusk is told from dawn: the sun going
-        down means dusk. Local clock hours cannot do that job - they are
-        wrong under the fast-forward simulation clock (Site.time_speedup),
-        which advances the modelled sky but not the wall clock.
+        The exposure-time calculator needs the rate anyway - it integrates
+        the sky forward over the frame - and it doubles as the dusk/dawn
+        test: ``rate < 0`` is the sun setting. Local clock hours cannot do
+        that job, they are wrong under the fast-forward simulation clock
+        (Site.time_speedup), which advances the modelled sky but not the
+        wall clock.
         """
         site = self._get_site()
         now = site.ut()
@@ -126,11 +121,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         )
         return alt_now, (alt_later - alt_now) / SUN_TRACK_BASELINE
 
-    def _is_dusk(self):
-        """True while the sun is setting."""
-        _, rate = self._sun_track()
-        return rate < 0
-
     #
     # instrument helpers
     #
@@ -138,6 +128,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     def _set_filter(self, filter_id):
         """Move the wheel only when it is not already on ``filter_id``.
 
+        The controller has to drive the wheel itself: ImageRequest has no
+        filter key (it rejects unknown ones), so the camera cannot do it.
         set_filter also applies the configured focus offset, so a redundant
         call costs a focuser move as well as a wheel move.
         """
@@ -240,11 +232,18 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             return False
         try:
             alt, az = tel.get_position_alt_az()
-            # small-angle separation is enough here: the tolerance is ~1 deg
-            # and the flat position is far from the pole
-            d_alt = float(alt) - float(self["flat_alt"])
-            d_az = (float(az) - float(self["flat_az"] % 360) + 180) % 360 - 180
-            separation = np.hypot(d_alt, d_az * np.cos(np.radians(float(alt))))
+            # gcdist, not Position.angsep: angsep reads the pair as
+            # (ra, dec), so it comes out wrong for an alt/az Position -
+            # 180 deg for two points 2 deg apart at the zenith
+            separation = np.degrees(
+                CoordUtil.gcdist(
+                    (np.radians(float(az)), np.radians(float(alt))),
+                    (
+                        np.radians(float(self["flat_az"])),
+                        np.radians(float(self["flat_alt"])),
+                    ),
+                )
+            )
             return separation < float(self["flat_position_max"])
         except Exception:
             self.log.debug("Could not read the telescope position, slewing anyway.")
@@ -276,17 +275,24 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         except Exception:
             self.log.exception("Error starting telescope tracking")
 
-    def _wait(self, seconds):
-        """Sleep, but wake up immediately on abort. True if aborted."""
-        return self._abort.wait(seconds)
-
     #
     # sky model
     #
 
+    def _read_coefficients(self):
+        """The coefficients file, read once per run.
+
+        It is a fit over past nights, it does not change under us, and a
+        run re-reads it from scratch (_get_flats drops the cache) so a
+        refit lands on the next set without a restart.
+        """
+        if self._coefficients is None:
+            self._coefficients = self.read_coefficients_file(self["coefficients_file"])
+        return self._coefficients
+
     def _load_coefficients(self, filter_id):
-        """Read scale/slope/bias for ``filter_id`` from the coefficients file."""
-        coefficients = self.read_coefficients_file(self["coefficients_file"])
+        """Point the sky model at ``filter_id``'s scale/slope/bias."""
+        coefficients = self._read_coefficients()
         if filter_id not in coefficients:
             raise ChimeraException(
                 f"No sky brightness coefficients for filter {filter_id} in "
@@ -309,9 +315,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         ``model_gain`` scales the sky term only: the bias is the model's
         floor, not part of the night-to-night sky brightness.
         """
-        return (
-            self.scale * model_gain * np.exp(self.slope * np.radians(sun_alt_degrees))
-            + self.bias
+        return self.exp_arg(
+            np.radians(sun_alt_degrees), self.scale * model_gain, self.slope, self.bias
         )
 
     #
@@ -344,6 +349,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             self._run_lock.release()
 
     def _get_flats(self, filter_id, n_flats, request):
+        self._coefficients = None  # a run always starts from a fresh read
         self._load_coefficients(filter_id)
         self.log.debug(
             f"Skyflat parameters: n_flats = {n_flats}, filter = {filter_id}, "
@@ -366,6 +372,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         while True:
             sun_alt, sun_rate = self._sun_track()
+            dusk = sun_rate < 0
             if not self["sun_alt_low"] < sun_alt < self["sun_alt_hi"]:
                 self.log.info(
                     f"Sun altitude {sun_alt:.2f} left the flat window "
@@ -382,7 +389,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 self.log.warning("Aborting!")
                 break
 
-            dusk = sun_rate < 0
             computed = self.compute_sky_flat_time(model_gain)
 
             if computed is False:
@@ -412,7 +418,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 # sky too bright for this filter
                 if dusk:
                     self.log.debug("Exposure time too low. Waiting 5 seconds.")
-                    if self._wait(5):
+                    if self._abort.wait(5):
                         break
                     continue
                 # at dawn it only gets brighter: step DOWN in sensitivity
@@ -482,18 +488,19 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
         while True:
             sun_alt, sun_rate = self._sun_track()
+            dusk = sun_rate < 0
             if self["sun_alt_low"] < sun_alt < self["sun_alt_hi"]:
                 return True
 
             # the window is over, not yet to come: at dusk once the sun is
             # below the strip, at dawn once it is above it
-            if sun_rate < 0 and sun_alt < self["sun_alt_low"]:
+            if dusk and sun_alt < self["sun_alt_low"]:
                 self.log.info(
                     f"Finishing flats. Sun altitude {sun_alt:.2f} is below "
                     f"{self['sun_alt_low']}"
                 )
                 return False
-            if sun_rate > 0 and sun_alt > self["sun_alt_hi"]:
+            if not dusk and sun_alt > self["sun_alt_hi"]:
                 self.log.info(
                     f"Finishing flats. Sun altitude {sun_alt:.2f} is above "
                     f"{self['sun_alt_hi']}"
@@ -508,7 +515,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 f"Sun altitude is {sun_alt:.2f}, waiting for it to be between "
                 f"{self['sun_alt_low']} and {self['sun_alt_hi']}"
             )
-            if self._wait(5):
+            if self._abort.wait(5):
                 self.log.warning("Aborting!")
                 return False
 
@@ -586,6 +593,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
         while True:
             sun_alt, sun_rate = self._sun_track()
+            dusk = sun_rate < 0
             counts = 0.0
             exposure_time = 0.0
 
@@ -609,7 +617,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             self.log.debug(
                 f"Computed exposure: sun altitude {sun_alt:.2f}, counts {counts:.0f}"
             )
-            if sun_rate < 0:
+            if dusk:
                 # dusk: it only gets worse from here
                 self.log.warning(
                     f"Computed exposure time {exposure_time:.2f} exceeded the limit "
@@ -628,7 +636,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 f"{exptime_max}. Waiting 6 sec..."
             )
             n_wait_iter += 1
-            if self._wait(6):
+            if self._abort.wait(6):
                 self.log.warning("Aborting!")
                 return False
 
@@ -672,14 +680,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         """
         if not self["filter_fallback"]:
             return None
-        try:
-            coefficients = self.read_coefficients_file(self["coefficients_file"])
-        except (OSError, ValueError):
-            self.log.warning(
-                "could not re-read the coefficients file; not switching filter"
-            )
-            return None
-
+        coefficients = self._read_coefficients()
         current = coefficients.get(filter_id)
         if current is None:
             return None

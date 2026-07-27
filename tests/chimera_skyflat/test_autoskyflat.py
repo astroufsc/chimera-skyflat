@@ -16,6 +16,7 @@ from chimera_skyflat.controllers.autoskyflat import (
 )
 from tests.chimera_skyflat.fakes import (
     COEFFICIENTS,
+    ClockEvent,
     FakeCamera,
     FakeClock,
     FakeFilterWheel,
@@ -71,12 +72,7 @@ def build(
     flat._get_tel = lambda: telescope
 
     if not real_waits:
-
-        def wait(seconds):
-            clock.advance(seconds)
-            return flat._abort.is_set()
-
-        flat._wait = wait
+        flat._abort = ClockEvent(clock)
 
     events = []
     flat.expose_complete = lambda *args: events.append(args)
@@ -132,8 +128,9 @@ def test_dusk_and_dawn_come_from_the_sun_not_the_wall_clock(
     dusk, _ = build(tmp_path, coefficients_file, rate=-0.004)
     dawn, _ = build(tmp_path, coefficients_file, rate=+0.004)
 
-    assert dusk._is_dusk()
-    assert not dawn._is_dusk()
+    # the sign of the rate is the dusk/dawn test everywhere in the controller
+    assert dusk._sun_track()[1] < 0
+    assert dawn._sun_track()[1] > 0
 
 
 #
@@ -179,8 +176,6 @@ def test_dawn_waits_instead_of_giving_up(tmp_path, coefficients_file):
         tmp_path, coefficients_file, alt0=-16.0, rate=+0.02, exptime_max=30
     )
     flat._load_coefficients("CLEAR")
-    # the wait loop sleeps on the abort event; advance the fake clock instead
-    flat._wait = lambda seconds: (fakes["clock"].advance(60), False)[1]
 
     exptime, _ = flat.compute_sky_flat_time()
 
@@ -342,13 +337,13 @@ def test_waiting_for_the_window_ends_on_abort(tmp_path, coefficients_file):
     )
 
     done, waiting = threading.Event(), threading.Event()
-    real_wait = flat._wait
 
-    def wait(seconds):
-        waiting.set()
-        return real_wait(seconds)
+    class WatchedEvent(threading.Event):
+        def wait(self, timeout=None):
+            waiting.set()
+            return super().wait(timeout)
 
-    flat._wait = wait
+    flat._abort = WatchedEvent()
 
     def run():
         flat.get_flats("CLEAR", n_flats=1)
@@ -434,3 +429,21 @@ def test_the_scope_is_not_re_slewed_within_flat_position_max(
     flat.get_flats("CLEAR", n_flats=2)
 
     assert fakes["telescope"].slews == 0
+
+
+def test_the_flat_position_check_is_a_great_circle_distance(
+    tmp_path, coefficients_file
+):
+    """Position.angsep() reads its pair as (ra, dec), so on an alt/az
+    Position it calls two points 2 degrees apart at the zenith 180 degrees
+    apart - and every frame would re-slew."""
+    flat, fakes = build(
+        tmp_path, coefficients_file, flat_alt=89, flat_az=0, flat_position_max=3
+    )
+    telescope = fakes["telescope"]
+
+    telescope.alt, telescope.az = 89, 180  # 2 degrees away over the pole
+    assert flat._at_flat_position(telescope)
+
+    telescope.alt, telescope.az = 85, 180  # 6 degrees away
+    assert not flat._at_flat_position(telescope)

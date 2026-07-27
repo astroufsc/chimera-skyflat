@@ -10,6 +10,7 @@ counts come out of an actual FITS file.
 """
 
 import datetime as dt
+import threading
 
 import numpy as np
 from astropy.io import fits
@@ -34,6 +35,24 @@ class FakeClock:
 
     def advance(self, seconds):
         self.now += dt.timedelta(seconds=seconds)
+
+
+class ClockEvent(threading.Event):
+    """The controller's abort flag, wired to the fake clock.
+
+    Every wait in the controller is `self._abort.wait(seconds)`; here that
+    moves the modelled sky forward by those seconds instead of the wall
+    clock, so a run waiting for the sky to dim makes progress in a test.
+    """
+
+    def __init__(self, clock):
+        super().__init__()
+        self.clock = clock
+
+    def wait(self, timeout=None):
+        if timeout:
+            self.clock.advance(timeout)
+        return self.is_set()
 
 
 class FakeSite:
