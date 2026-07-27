@@ -23,6 +23,7 @@ from tests.chimera_skyflat.fakes import (
     FakeSite,
     FakeSky,
     FakeTelescope,
+    LegacyFakeSite,
 )
 
 IDEAL = 25000.0
@@ -42,6 +43,7 @@ def build(
     rate=-0.004,
     factor=1.0,
     real_waits=False,
+    site_class=FakeSite,
     **config,
 ):
     """An AutoSkyFlat wired to the fakes, plus the fakes themselves.
@@ -50,7 +52,7 @@ def build(
     that waits for the sky to dim makes progress here too.
     """
     clock = FakeClock()
-    site = FakeSite(clock, alt0=alt0, rate=rate)
+    site = site_class(clock, alt0=alt0, rate=rate)
     sky = FakeSky(site, COEFFICIENTS, factor=factor)
     camera = FakeCamera(clock, sky, tmp_path)
     wheel = FakeFilterWheel()
@@ -128,9 +130,21 @@ def test_dusk_and_dawn_come_from_the_sun_not_the_wall_clock(
     dusk, _ = build(tmp_path, coefficients_file, rate=-0.004)
     dawn, _ = build(tmp_path, coefficients_file, rate=+0.004)
 
-    # the sign of the rate is the dusk/dawn test everywhere in the controller
-    assert dusk._sun_track()[1] < 0
-    assert dawn._sun_track()[1] > 0
+    assert dusk._sun_track()[2] is True
+    assert dawn._sun_track()[2] is False
+
+
+def test_a_core_without_the_site_helpers_still_works(tmp_path, coefficients_file):
+    """Site.sun_altitude()/is_dusk() are astroufsc/chimera#275; until that
+    lands everywhere, sunpos() and the sun's own rate answer the same."""
+    flat, fakes = build(tmp_path, coefficients_file, site_class=LegacyFakeSite)
+
+    altitude, rate, dusk = flat._sun_track()
+
+    assert flat._site_has_sun_helpers is False
+    assert altitude == pytest.approx(-2.0, abs=0.5)
+    assert rate < 0 and dusk is True
+    assert flat.get_flats("CLEAR", n_flats=2) == 2
 
 
 #

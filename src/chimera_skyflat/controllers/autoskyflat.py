@@ -67,6 +67,8 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self.scale = self.slope = self.bias = None
         # the coefficients file, read once per run (see _get_flats)
         self._coefficients = None
+        # does this core have Site.sun_altitude()/is_dusk()? probed on use
+        self._site_has_sun_helpers = True
 
     #
     # proxies
@@ -90,36 +92,62 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
     @staticmethod
     def _altitude_in_degrees(sunpos):
-        """Sun altitude in DEGREES from whatever Site.sunpos() returned.
+        """Sun altitude in DEGREES from whatever the site answered.
 
-        Older cores returned ``(alt, az)`` in degrees; the current one
-        returns a ``Position`` whose ``.alt`` is degrees but which also
-        unpacks into ``Coord``s. Guessing wrong is what pinned every
-        twilight flat at exptime_max on 2026-07-21, and feeding the Coord
-        straight to ``np.radians()`` raises TypeError.
+        ``Site.sun_altitude()`` gives a float; ``sunpos()`` gives a
+        ``Position`` whose ``.alt`` is degrees but which also unpacks into
+        ``Coord``s, and older cores gave ``(alt, az)``. Guessing wrong is
+        what pinned every twilight flat at exptime_max on 2026-07-21, and
+        feeding the Coord straight to ``np.radians()`` raises TypeError.
         """
         altitude = getattr(sunpos, "alt", None)
         if altitude is None:
             altitude = sunpos[0] if isinstance(sunpos, tuple | list) else sunpos
         return float(altitude)
 
+    def _sun_altitude(self, site, date):
+        """Sun altitude in degrees at ``date``.
+
+        ``Site.sun_altitude()`` (astroufsc/chimera#275) answers in degrees
+        and crosses the bus; ``sunpos()`` answers with a Position, which is
+        not serializable, so it only works on the site's own bus. Probe
+        once, then stop asking - the fallback goes away once every core in
+        the field has the accessor.
+        """
+        if self._site_has_sun_helpers:
+            try:
+                return float(site.sun_altitude(date))
+            except Exception:
+                self.log.debug("This core has no Site.sun_altitude(); using sunpos().")
+                self._site_has_sun_helpers = False
+        return self._altitude_in_degrees(site.sunpos(date))
+
     def _sun_track(self):
-        """(altitude now [deg], rate [deg/s]) from two sun positions.
+        """(altitude now [deg], rate [deg/s], dusk) from the site.
 
         The exposure-time calculator needs the rate anyway - it integrates
-        the sky forward over the frame - and it doubles as the dusk/dawn
-        test: ``rate < 0`` is the sun setting. Local clock hours cannot do
-        that job, they are wrong under the fast-forward simulation clock
-        (Site.time_speedup), which advances the modelled sky but not the
-        wall clock.
+        the sky forward over the frame - so the two altitudes come first
+        and dusk comes with them, one answer for the whole iteration.
         """
         site = self._get_site()
         now = site.ut()
-        alt_now = self._altitude_in_degrees(site.sunpos(now))
-        alt_later = self._altitude_in_degrees(
-            site.sunpos(now + dt.timedelta(seconds=SUN_TRACK_BASELINE))
+        alt_now = self._sun_altitude(site, now)
+        alt_later = self._sun_altitude(
+            site, now + dt.timedelta(seconds=SUN_TRACK_BASELINE)
         )
-        return alt_now, (alt_later - alt_now) / SUN_TRACK_BASELINE
+        rate = (alt_later - alt_now) / SUN_TRACK_BASELINE
+
+        # Site.is_dusk() is the core's answer (astroufsc/chimera#275); on a
+        # core without it, the sign of the rate just measured says the same
+        # thing. Local clock hours do not: they are the wall clock, which
+        # says nothing about a night simulated under time_speedup.
+        if self._site_has_sun_helpers:
+            try:
+                return alt_now, rate, bool(site.is_dusk())
+            except Exception:
+                self.log.debug("This core has no Site.is_dusk(); using the sun's rate.")
+                self._site_has_sun_helpers = False
+        return alt_now, rate, rate < 0
 
     #
     # instrument helpers
@@ -371,8 +399,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         tried_filters = {filter_id}
 
         while True:
-            sun_alt, sun_rate = self._sun_track()
-            dusk = sun_rate < 0
+            sun_alt, sun_rate, dusk = self._sun_track()
             if not self["sun_alt_low"] < sun_alt < self["sun_alt_hi"]:
                 self.log.info(
                     f"Sun altitude {sun_alt:.2f} left the flat window "
@@ -487,8 +514,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         was aborted), True when it is time to shoot.
         """
         while True:
-            sun_alt, sun_rate = self._sun_track()
-            dusk = sun_rate < 0
+            sun_alt, _, dusk = self._sun_track()
             if self["sun_alt_low"] < sun_alt < self["sun_alt_hi"]:
                 return True
 
@@ -592,8 +618,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         n_wait_iter = 0
 
         while True:
-            sun_alt, sun_rate = self._sun_track()
-            dusk = sun_rate < 0
+            sun_alt, sun_rate, dusk = self._sun_track()
             counts = 0.0
             exposure_time = 0.0
 

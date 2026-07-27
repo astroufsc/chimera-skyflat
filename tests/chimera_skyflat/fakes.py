@@ -78,6 +78,25 @@ class FakeSite:
             Coord.from_d(self.altitude(date)), Coord.from_d(180.0)
         )
 
+    # -- astroufsc/chimera#275 ------------------------------------------
+
+    def sun_altitude(self, date=None):
+        self.sunpos_calls += 1
+        return self.altitude(date)
+
+    def is_dusk(self, date=None):
+        return self.rate < 0
+
+
+class LegacyFakeSite(FakeSite):
+    """A core from before Site.sun_altitude()/is_dusk(): sunpos() only."""
+
+    def sun_altitude(self, date=None):
+        raise AttributeError("sun_altitude")
+
+    def is_dusk(self, date=None):
+        raise AttributeError("is_dusk")
+
 
 class FakeSky:
     """The real sky: the model's shape, scaled by ``factor``.
