@@ -2,7 +2,7 @@
 name = "chimera_skyflat"
 version = "0.1.0"
 description = "Chimera plugins for automating skyflats"
-license = "MIT"
+license = "GPL-2.0-or-later"
 authors = [
     { name = "Antonio Kanaan", email = "kanaan@astro.ufsc.br" },
     { name = "William Schoenell", email = "wschoenell@gmail.com" },
@@ -10,9 +10,24 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "astropy>=6.1.3",
     "chimera",
     "matplotlib>=3.10.7",
+    "numpy>=2.1",
     "scipy>=1.16.3",
+]
+
+[project.scripts]
+chimera-skyflat = "chimera_skyflat.cli.skyflat:main"
+
+[project.urls]
+source = "https://github.com/astroufsc/chimera-skyflat"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0",
+    "pytest>=8.3",
+    "ruff>=0.14",
 ]
 
 [build-system]
@@ -22,9 +37,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/chimera_skyflat"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+
 [tool.ruff]
 line-length = 88
 target-version = "py313"
+extend-exclude = [".history"]
 
 [tool.ruff.lint]
 select = ["N", "I", "UP", "F"]
