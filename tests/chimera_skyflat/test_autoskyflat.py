@@ -164,6 +164,19 @@ def test_computed_exposure_reaches_the_ideal_counts(tmp_path, coefficients_file)
     assert delivered == pytest.approx(IDEAL, rel=0.02)
 
 
+def test_the_computed_exposure_time_is_a_plain_float(tmp_path, coefficients_file):
+    """np.exp() makes the modelled rate a numpy scalar and the exposure
+    time inherits it. msgspec cannot encode one, so it took out the expose
+    request and every metadata call behind it (2026-07-27 twilight)."""
+    flat, _ = build(tmp_path, coefficients_file, alt0=-6.0)
+    flat._load_coefficients("CLEAR")
+
+    exptime, expected = flat.compute_sky_flat_time()
+
+    assert type(exptime) is float
+    assert type(expected) is float
+
+
 def test_the_calculator_does_not_poll_the_sun_once_per_increment(
     tmp_path, coefficients_file
 ):

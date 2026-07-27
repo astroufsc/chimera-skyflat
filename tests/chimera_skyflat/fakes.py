@@ -12,6 +12,7 @@ counts come out of an actual FITS file.
 import datetime as dt
 import threading
 
+import msgspec
 import numpy as np
 from astropy.io import fits
 from chimera.util.coord import Coord
@@ -180,6 +181,10 @@ class FakeCamera:
         self.exposures = []
 
     def expose(self, request):
+        # the bus encodes every request; a numpy scalar in one of them takes
+        # out the exposure and every metadata call that follows it
+        msgspec.json.encode(dict(request))
+
         exptime = float(request["exptime"])
         counts = min(
             self.sky.counts(self.clock.now, exptime),

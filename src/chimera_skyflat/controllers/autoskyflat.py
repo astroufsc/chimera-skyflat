@@ -176,7 +176,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         self._set_filter(filter_id)
 
         imrequest = ImageRequest(
-            exptime=exptime,
+            # plain float: msgspec cannot encode a numpy scalar, and this
+            # request is copied into every metadata call the frame makes
+            exptime=float(exptime),
             frames=1,
             shutter=Shutter.OPEN,
             filename=os.path.basename(ImageUtil.make_filename("skyflat-$DATE-$TIME")),
@@ -624,8 +626,13 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
 
             while exposure_time <= exptime_max:
                 # the sun keeps moving during the exposure, so integrate the
-                # rate forward instead of freezing it at the start
-                rate = self._sky_rate(sun_alt + sun_rate * exposure_time, model_gain)
+                # rate forward instead of freezing it at the start. float():
+                # np.exp() makes the rate a numpy scalar, and msgspec cannot
+                # encode one, so letting it reach the ImageRequest breaks
+                # every bus message the exposure touches
+                rate = float(
+                    self._sky_rate(sun_alt + sun_rate * exposure_time, model_gain)
+                )
                 if counts + rate * increment >= ideal_counts:
                     # finish on a partial step: rounding the exposure down to
                     # a whole increment costs up to exptime_increment of sky,
