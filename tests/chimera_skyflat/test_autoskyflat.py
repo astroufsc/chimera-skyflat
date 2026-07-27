@@ -241,6 +241,22 @@ def test_the_correction_converges_without_ringing(tmp_path, coefficients_file, f
         assert level == pytest.approx(IDEAL, rel=0.25), f"not converged: {levels}"
 
 
+def test_the_correction_can_move_a_model_dominated_by_its_bias(
+    tmp_path, coefficients_file
+):
+    """2026-07-27 HBETA: the coefficients carry bias = 100 counts/s (the
+    fitter never fits it), which by the fourth frame was 98% of the
+    predicted rate. Scaling only the sky term left the gain moving the
+    exposure by 2% while the sky fell by 3x a frame."""
+    flat, _ = build(tmp_path, coefficients_file)
+    flat.scale, flat.slope, flat.bias = 2442.0, 52.53, 100.0
+
+    faint = -6.59  # where the sky term was 1.8 counts/s against a bias of 100
+    assert flat._sky_rate(faint, model_gain=0.1) == pytest.approx(
+        flat._sky_rate(faint, model_gain=1.0) * 0.1
+    )
+
+
 def test_the_correction_is_damped_not_proportional(tmp_path, coefficients_file):
     flat, _ = build(tmp_path, coefficients_file, correction_damping=0.5)
 

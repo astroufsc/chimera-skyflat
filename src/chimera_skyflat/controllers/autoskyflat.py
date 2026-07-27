@@ -342,11 +342,19 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         in degrees. The conversion used to run the wrong way, which
         underflowed exp() and ran every flat to exptime_max (2026-07-21).
 
-        ``model_gain`` scales the sky term only: the bias is the model's
-        floor, not part of the night-to-night sky brightness.
+        ``model_gain`` scales the WHOLE rate, bias included. It scaled only
+        the sky term until 2026-07-27, when a coefficients file carrying a
+        bias of 100 counts/s (never fitted - the fitter's `+ c` term is
+        commented out, so the initial guess is what lands in the JSON) left
+        the correction with no authority: four frames into an HBETA set the
+        bias was 98% of the predicted rate, the exposure was pinned at
+        ideal_counts/bias = 250 s, and the gain walking 1.0 -> 0.155 moved
+        the prediction by 2%. A zero point is a property of the whole
+        model, not of one of its terms.
         """
-        return self.exp_arg(
-            np.radians(sun_alt_degrees), self.scale * model_gain, self.slope, self.bias
+        return (
+            self.exp_arg(np.radians(sun_alt_degrees), self.scale, self.slope, self.bias)
+            * model_gain
         )
 
     #
