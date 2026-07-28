@@ -15,8 +15,6 @@ import threading
 import msgspec
 import numpy as np
 from astropy.io import fits
-from chimera.util.coord import Coord
-from chimera.util.position import Position
 
 # CLEAR/R/V-like coefficients, same shape as skyflat_coefficients.json
 COEFFICIENTS = {
@@ -74,13 +72,10 @@ class FakeSite:
         date = date or self.clock.now
         return self.alt0 + self.rate * (date - self._t0).total_seconds()
 
-    def sunpos(self, date=None):
-        self.sunpos_calls += 1
-        return Position.from_alt_az(
-            Coord.from_d(self.altitude(date)), Coord.from_d(self.azimuth)
-        )
-
-    # -- astroufsc/chimera#275 ------------------------------------------
+    # -- astroufsc/chimera#275/#282 float accessors ---------------------
+    # No sunpos() here on purpose: it returns a Position, which the bus
+    # cannot encode, so the controller must never call it. A fake without
+    # it makes any such call an AttributeError in the tests.
 
     def sun_altitude(self, date=None):
         self.sunpos_calls += 1
@@ -91,19 +86,6 @@ class FakeSite:
 
     def is_dusk(self, date=None):
         return self.rate < 0
-
-
-class LegacyFakeSite(FakeSite):
-    """A core from before Site.sun_altitude()/is_dusk(): sunpos() only."""
-
-    def sun_altitude(self, date=None):
-        raise AttributeError("sun_altitude")
-
-    def sun_azimuth(self, date=None):
-        raise AttributeError("sun_azimuth")
-
-    def is_dusk(self, date=None):
-        raise AttributeError("is_dusk")
 
 
 class FakeSky:

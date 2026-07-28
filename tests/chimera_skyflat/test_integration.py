@@ -39,7 +39,12 @@ def manager():
     bus_thread.start()
     assert bus._bus_started.wait(5)
 
-    manager = Manager(bus)
+    # site= is how production builds it (chimera.cli.chimera): the manager
+    # injects it into every object as get_site() - the fake telescope needs
+    # it for its alt/az bookkeeping (astroufsc/chimera#271)
+    site = Site()
+    site["name"] = "test"
+    manager = Manager(bus, site=site)
     yield manager
 
     manager.shutdown()
@@ -52,7 +57,6 @@ def skyflat(manager, tmp_path):
     coefficients = tmp_path / "coefficients.json"
     coefficients.write_text(json.dumps(FLOOD_LIT_SKY))
 
-    manager.add_class(Site, "test", {"name": "test"})
     manager.add_class(
         ImageServer, "test", {"images_dir": str(tmp_path), "httpd": False}
     )

@@ -7,8 +7,6 @@ import threading
 import numpy as np
 import pytest
 from astropy.io import fits
-from chimera.util.coord import Coord
-from chimera.util.position import Position
 
 from chimera_skyflat.controllers.autoskyflat import (
     AutoSkyFlat,
@@ -23,7 +21,6 @@ from tests.chimera_skyflat.fakes import (
     FakeSite,
     FakeSky,
     FakeTelescope,
-    LegacyFakeSite,
 )
 
 IDEAL = 25000.0
@@ -108,20 +105,6 @@ def test_sky_level_returns_plain_float(tmp_path):
     assert level == 1000.0
 
 
-def test_sun_altitude_from_a_position_is_degrees():
-    """Site.sunpos() returns a Position of Coords; np.radians() on a Coord
-    raises TypeError, and reading it as radians pinned every flat at
-    exptime_max (2026-07-21)."""
-    position = Position.from_alt_az(Coord.from_d(-8.5), Coord.from_d(180))
-
-    assert AutoSkyFlat._altitude_in_degrees(position) == pytest.approx(-8.5)
-
-
-def test_sun_altitude_accepts_the_old_tuple_and_plain_floats():
-    assert AutoSkyFlat._altitude_in_degrees((-8.5, 180.0)) == pytest.approx(-8.5)
-    assert AutoSkyFlat._altitude_in_degrees(-8.5) == pytest.approx(-8.5)
-
-
 def test_dusk_and_dawn_come_from_the_sun_not_the_wall_clock(
     tmp_path, coefficients_file
 ):
@@ -134,17 +117,20 @@ def test_dusk_and_dawn_come_from_the_sun_not_the_wall_clock(
     assert dawn._sun_track()[2] is False
 
 
-def test_a_core_without_the_site_helpers_still_works(tmp_path, coefficients_file):
-    """Site.sun_altitude()/is_dusk() are astroufsc/chimera#275; until that
-    lands everywhere, sunpos() and the sun's own rate answer the same."""
-    flat, fakes = build(tmp_path, coefficients_file, site_class=LegacyFakeSite)
+def test_the_sun_readings_never_call_sunpos(tmp_path, coefficients_file):
+    """sunpos() returns a Position, which the bus cannot encode - calling
+    it through a proxy logs a serialization error on every cycle (opd-40
+    2026-07-28). The fake site has no sunpos() at all, so any such call
+    dies here as an AttributeError; this exercises the full reading set."""
+    flat, fakes = build(tmp_path, coefficients_file)
 
+    assert not hasattr(fakes["site"], "sunpos")
     altitude, rate, dusk = flat._sun_track()
-
-    assert flat._site_has_sun_helpers is False
     assert altitude == pytest.approx(-2.0, abs=0.5)
     assert rate < 0 and dusk is True
+    flat_az = (fakes["site"].sun_azimuth() + 180.0) % 360.0
     assert flat.get_flats("CLEAR", n_flats=2) == 2
+    assert fakes["telescope"].az == pytest.approx(flat_az)
 
 
 #
@@ -233,9 +219,9 @@ def test_the_correction_converges_without_ringing(tmp_path, coefficients_file, f
     # every time)
     crossings = sum(1 for a, b in zip(errors, errors[1:]) if a * b < 0)
     assert crossings <= 1, f"ringing: {levels}"
-    assert all(
-        abs(b) <= abs(a) + 0.05 * IDEAL for a, b in zip(errors, errors[1:])
-    ), f"diverging: {levels}"
+    assert all(abs(b) <= abs(a) + 0.05 * IDEAL for a, b in zip(errors, errors[1:])), (
+        f"diverging: {levels}"
+    )
     # and it settles on the target
     for level in levels[3:]:
         assert level == pytest.approx(IDEAL, rel=0.25), f"not converged: {levels}"
