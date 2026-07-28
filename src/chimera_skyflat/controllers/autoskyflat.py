@@ -123,7 +123,7 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         return self._altitude_in_degrees(site.sunpos(date))
 
     def _sun_azimuth(self, site):
-        """Sun azimuth in degrees, for the anti-solar flat position."""
+        """Sun azimuth in degrees. The flats go 180 degrees from it."""
         if self._site_has_sun_helpers:
             try:
                 return float(site.sun_azimuth())
@@ -131,21 +131,6 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 self.log.debug("This core has no Site.sun_azimuth(); using sunpos().")
                 self._site_has_sun_helpers = False
         return float(site.sunpos().az)
-
-    def _flat_position(self):
-        """(alt, az) in degrees to shoot the flats at.
-
-        The twilight sky gradient is smallest at the anti-solar point, so
-        that is where flats belong (arXiv:1407.8283, which also puts it at
-        altitude 75). A fixed azimuth is only right when the sun happens to
-        set behind it: on 2026-07-27 at OPD the configured az 78 sat 38
-        degrees off the null point. ``flat_anti_sun: False`` restores the
-        fixed ``flat_az``.
-        """
-        altitude = float(self["flat_alt"])
-        if not self["flat_anti_sun"]:
-            return altitude, float(self["flat_az"])
-        return altitude, (self._sun_azimuth(self._get_site()) + 180.0) % 360.0
 
     def _sun_track(self):
         """(altitude now [deg], rate [deg/s], dusk) from the site.
@@ -242,13 +227,16 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         return image.filename, image
 
     def _move_scope(self, tracking=False):
-        """Point the scope at the flat field position.
+        """Point the scope at the anti-solar flat field position.
 
         A failed slew is fatal: flats taken from wherever the telescope
         happened to be are not flats.
         """
         tel = self._get_tel()
-        flat_alt, flat_az = self._flat_position()
+        # the anti-solar point: where the twilight sky gradient is smallest
+        # (arXiv:1407.8283). Recomputed per frame - it moves with the sun.
+        flat_alt = float(self["flat_alt"])
+        flat_az = (self._sun_azimuth(self._get_site()) + 180.0) % 360.0
 
         if self["pier_side"] is not None and tel.features("TelescopePier"):
             try:
@@ -283,9 +271,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
     def _at_flat_position(self, tel, flat_alt, flat_az):
         """True when the scope is already within flat_position_max.
 
-        With flat_anti_sun on, the target itself moves - the sun's azimuth
-        runs a few tenths of a degree per minute at sunset - so this also
-        decides how often the set re-points at the null point.
+        The target itself moves - the sun's azimuth runs a few tenths of a
+        degree per minute at sunset - so this also decides how often the set
+        re-points at the null.
         """
         if not self["flat_position_max"]:
             return False

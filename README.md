@@ -108,10 +108,8 @@ controllers:
       tracking: True             # Enable telescope tracking when exposing?
       flat_position_max: 1       # Skip the slew when the telescope is already this
                                  # close to the flat position; 0 slews every frame. (degrees)
-      flat_anti_sun: True        # Point at the anti-solar azimuth (see below)
-      flat_alt: 75               # Skyflat position - Altitude. (degrees)
-      flat_az: 78                # Skyflat position - Azimuth, only used when
-                                 # flat_anti_sun is False. (degrees)
+      flat_alt: 75               # Skyflat altitude; the azimuth is always the
+                                 # anti-solar one (see below). (degrees)
       pier_side: EAST            # Pier side to take Skyflats on: EAST, WEST or None
       sun_alt_hi: -5             # Highest Sun altitude to make Skyflats. (degrees)
       sun_alt_low: -30           # Lowest Sun altitude to make Skyflats. (degrees)
@@ -156,16 +154,16 @@ concluding that a filter has run out of sky.
 ## Where the flats are taken
 
 The twilight sky has a brightness gradient, and it is smallest at the
-**anti-solar point** — that is the whole subject of the paper above. With
-`flat_anti_sun: True` (the default) the controller points at
-`sun_azimuth + 180` at `flat_alt`, recomputed before every frame as the sun
-moves; the paper puts that point at altitude 75. `flat_position_max` decides
-how far the telescope may drift from it before being re-pointed — 0 re-slews
-before every frame, which is closest to the paper's "re-point after 30 s of
-exposure".
+**anti-solar point** — that is the whole subject of the paper above. So that
+is where the flats are taken, always: `sun_azimuth + 180`, recomputed before
+every frame as the sun moves. There is no azimuth setting, because a fixed
+azimuth is the right place only on the day the sun happens to set behind it.
 
-Set `flat_anti_sun: False` to shoot at a fixed `flat_az` instead. That is
-only the right place when the sun happens to set behind it.
+`flat_alt` stays configurable — the horizon, the dome slit and the mount
+limits are yours, not the sky's. The paper puts the null point at 75, which
+is the default. `flat_position_max` decides how far the telescope may drift
+from the null before being re-pointed; 0 re-slews before every frame, which
+is closest to the paper's "re-point after 30 s of exposure".
 
 ## How the exposure time is chosen
 
