@@ -1,33 +1,13 @@
+# SPDX-FileCopyrightText: 2015-present Antonio Kanaan <kanaan@astro.ufsc.br>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 from chimera.core import SYSTEM_CONFIG_DIRECTORY
-
-__author__ = 'kanaan'
-
-#! /usr/bin/env python
-# -*- coding: iso-8859-1 -*-
-
-# chimera - observatory automation system
-# Copyright (C) 2006-2007  P. Henrique Silva <henrique@astro.ufsc.br>
-
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-# 02110-1301, USA.
-
-
-from chimera.core.interface import Interface
-
-from chimera.util.enum import Enum
+from chimera.core.event import event
 from chimera.core.exceptions import ChimeraException
+from chimera.core.interface import Interface
+from chimera.util.enum import Enum
+
+__author__ = "kanaan"
 
 
 class CantPointScopeException(ChimeraException):
@@ -41,30 +21,65 @@ class CanSetScopeButNotThisField(ChimeraException):
 class CantSetScopeException(ChimeraException):
     pass
 
-Target = Enum("CURRENT", "AUTO")
+
+class Target(Enum):
+    CURRENT = "CURRENT"
+    AUTO = "AUTO"
 
 
 class IAutoSkyFlat(Interface):
-
-    __config__ = {"telescope": "/Telescope/0",
-                  "dome": "/Dome/0",
-                  "camera": "/Camera/0",
-                  "filterwheel": "/FilterWheel/0",
-                  "site": "/Site/0",
-                  "tracking": True,                     # Enable telescope tracking when exposing?
-                  "flat_position_max": 1,               # If telescope less than flat_position_max, it does not move prior to expose. (degrees)
-                  "flat_alt": 89,                       # Skyflat position - Altitude. (degrees)
-                  "flat_az": 78,                        # Skyflat position - Azimuth. (degrees)
-                  "pier_side": None,                    # Pier Side to take Skyflat
-                  "sun_alt_hi": -5,                     # Lowest Sun Altitude to make Skyflats. (degrees)
-                  "sun_alt_low": -30,                   # Highest Sun Altitude to make Skyflats. (degrees)
-                  "exptime_increment": 0.2,             # Exposure time increment on integration. (seconds)
-                  "exptime_max": 300,                   # Maximum exposure time. (seconds)
-                  "max_wait_iter": 100,                 # Maximum number of iterations on wait loop
-                  "ideal_counts": 25000,                 # Ideal flat CCD counts.
-                  "coefficients_file": f"{SYSTEM_CONFIG_DIRECTORY}/skyflat_coefficients.json",
-                  "compress_format": "NO"
-                  }
+    __config__ = {
+        "telescope": "/Telescope/0",
+        "dome": "/Dome/0",
+        "camera": "/Camera/0",
+        "filterwheel": "/FilterWheel/0",
+        "site": "/Site/0",
+        # Enable telescope tracking when exposing?
+        "tracking": True,
+        # Skip the slew when the telescope is already this close to the flat
+        # position (degrees). 0 to slew before every frame.
+        "flat_position_max": 1,
+        # Skyflat altitude. The azimuth is not configurable: flats are shot
+        # at the anti-solar point, where the twilight gradient is smallest.
+        # Altitude is a site decision - horizon, dome slit, mount limits -
+        # so it stays a knob; arXiv:1407.8283 puts the null point at 75.
+        "flat_alt": 75,
+        # Pier side to take Skyflats on: "EAST", "WEST" or None to leave it
+        # to the telescope.
+        "pier_side": None,
+        # Highest Sun altitude to make Skyflats. (degrees)
+        "sun_alt_hi": -5,
+        # Lowest Sun altitude to make Skyflats. (degrees)
+        "sun_alt_low": -30,
+        # Exposure time increment on integration. (seconds)
+        "exptime_increment": 0.2,
+        # Maximum exposure time. (seconds)
+        "exptime_max": 300,
+        # Shortest usable exposure, e.g. the camera's own minimum. Below it
+        # the sky counts as too bright: wait at dusk, step to a less
+        # sensitive filter at dawn. (seconds)
+        "exptime_min": 0.2,
+        # Maximum number of iterations on the dawn wait loop
+        "max_wait_iter": 100,
+        # Ideal flat CCD counts.
+        "ideal_counts": 25000,
+        # Discard (do not publish, do not count) frames above this level,
+        # e.g. the detector's saturation. 0 disables the check.
+        "max_counts": 0,
+        # How hard each measurement corrects the sky model: 1.0 applies the
+        # whole measured ratio, 0.5 its square root. Below 1 the correction
+        # converges instead of ringing around ideal_counts.
+        "correction_damping": 0.5,
+        # Largest exposure time ratio between consecutive frames. 0 or 1
+        # disables the clamp.
+        "max_exptime_step": 2.0,
+        # When a filter cannot reach ideal_counts, move to the next more
+        # sensitive filter at dusk / less sensitive at dawn instead of
+        # ending the sequence.
+        "filter_fallback": True,
+        "coefficients_file": f"{SYSTEM_CONFIG_DIRECTORY}/skyflat_coefficients.json",
+        "compress_format": "NO",
+    }
 
     def get_flats(self, filter_id, n_flats, request):
         """
@@ -77,4 +92,15 @@ class IAutoSkyFlat(Interface):
     def get_sky_level(self, filename, image):
         """
         Returns average level from image
+        """
+
+    def abort(self):
+        """
+        Aborts the current sky flat sequence, aborting the running exposure.
+        """
+
+    @event
+    def expose_complete(self, filter_id, i_flat, exp_time, sky_level):
+        """
+        Called on exposure completion, once per flat frame actually kept.
         """
