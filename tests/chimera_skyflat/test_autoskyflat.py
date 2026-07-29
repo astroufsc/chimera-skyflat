@@ -312,6 +312,85 @@ def test_dawn_walks_down_to_a_less_sensitive_filter(tmp_path, coefficients_file)
     assert flat._next_filter("HBETA", {"HBETA"}, False, 0.0) is None
 
 
+def test_a_too_long_exposure_at_dawn_walks_up_not_down(tmp_path, coefficients_file):
+    """The direction follows the REASON, not the twilight.
+
+    "this filter needs more than exptime_max" is cured by a more sensitive
+    filter at dawn exactly as at dusk. Keying the walk on dusk instead
+    answered "R needs more than 60 s" with V - which needs longer still -
+    and R got no flats at all (opd-40 2026-07-29 morning set).
+    """
+    flat, fakes = build(tmp_path, coefficients_file, alt0=-6.0, rate=+0.004)
+
+    # first call: "this filter cannot reach ideal_counts inside exptime_max"
+    real = flat.compute_sky_flat_time
+    calls = []
+
+    def once_too_long(model_gain=1.0):
+        calls.append(1)
+        return False if len(calls) == 1 else real(model_gain)
+
+    flat.compute_sky_flat_time = once_too_long
+
+    flat.get_flats("V", n_flats=1)
+
+    walked = [f for f in fakes["wheel"].moves if f != "V"]
+    assert walked, f"no fallback happened: {fakes['wheel'].moves}"
+
+    # Ranked by the RATE at this altitude, not by the scale term - scale is
+    # the rate at altitude 0 and the filters cross as twilight fades. At -6
+    # deg B is fainter than V despite a 4x larger scale, so the old dawn
+    # walk answering with B was a longer exposure, not a shorter one.
+    def rate(name, alt=-6.0):
+        scale, slope, bias = COEFFICIENTS[name]
+        return scale * np.exp(slope * np.radians(alt)) + bias
+
+    assert rate(walked[0]) > rate("V"), (
+        f"walked to {walked[0]}, which is FAINTER than V at this altitude"
+    )
+
+
+def test_the_dawn_wait_is_bounded_by_the_window_not_by_an_iteration_count(
+    tmp_path, coefficients_file
+):
+    """At dawn the sky is brightening, so waiting always ends - either the
+    exposure fits or the sun leaves the top of the window. A fixed
+    max_wait_iter gave up 4 min short of the first usable frame on opd-40
+    2026-07-29 and handed control to the (then wrong-way) filter walk."""
+    flat, fakes = build(
+        tmp_path,
+        coefficients_file,
+        alt0=-7.0,
+        rate=+0.02,
+        exptime_max=30.0,
+        max_wait_iter=1,  # would have given up almost immediately
+        sun_alt_hi=0.0,
+        sun_alt_low=-8.0,
+    )
+    flat._load_coefficients("CLEAR")
+
+    computed = flat.compute_sky_flat_time()
+
+    assert computed is not False, "gave up while the sun was still rising"
+    exptime, _ = computed
+    assert 0 < exptime <= 30.0
+
+
+def test_the_dawn_wait_gives_up_once_the_window_closes(tmp_path, coefficients_file):
+    """The other side of it: past sun_alt_hi there is no flat left to take."""
+    flat, _ = build(
+        tmp_path,
+        coefficients_file,
+        alt0=+0.5,  # already above sun_alt_hi
+        rate=+0.02,
+        exptime_max=1e-6,  # nothing can fit
+        sun_alt_hi=0.0,
+    )
+    flat._load_coefficients("HBETA")
+
+    assert flat.compute_sky_flat_time() is False
+
+
 def test_the_filter_walk_ranks_by_tonight_not_by_the_scale_term(
     tmp_path, coefficients_file
 ):

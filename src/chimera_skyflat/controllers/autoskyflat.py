@@ -401,7 +401,14 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                 # scale (V -> R -> CLEAR) instead of ending the whole
                 # sequence, which used to abandon twilight with filters to
                 # spare. At dawn compute_sky_flat_time waits instead.
-                next_filter = self._next_filter(filter_id, tried_filters, dusk, sun_alt)
+                # need_brighter=True at BOTH ends of the night: the reason we
+                # are here is "this filter cannot reach ideal_counts inside
+                # exptime_max", and the cure is always a more sensitive
+                # filter. Passing `dusk` here sent the dawn walk down the
+                # sensitivity ladder instead of up - on opd-40 2026-07-29 it
+                # answered "R needs more than 60 s" by switching to V, which
+                # needs LONGER still, and R got no flats at all.
+                next_filter = self._next_filter(filter_id, tried_filters, True, sun_alt)
                 if next_filter is None:
                     break
                 self.log.info(
@@ -632,16 +639,29 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                     f"of {exptime_max}. Finishing this filter..."
                 )
                 return False
-            if n_wait_iter >= self["max_wait_iter"]:
+            # Dawn: the sky is brightening, so this wait ALWAYS ends - either
+            # the exposure comes under exptime_max or the sun leaves the top
+            # of the window. Bound it by the window, not by a fixed iteration
+            # count: 100 x 6 s = 10 min gave up at sun -6.6 deg on opd-40
+            # 2026-07-29, four minutes short of the first usable frame, and
+            # the caller then walked the filter the wrong way. max_wait_iter
+            # stays as a backstop against a clock that is not advancing.
+            if sun_alt >= float(self["sun_alt_hi"]):
                 self.log.warning(
-                    "Maximum number of wait iterations reached. Giving up."
+                    f"Sun altitude {sun_alt:.2f} reached the top of the flat "
+                    f"window before {exptime_max} s was enough. Giving up."
+                )
+                return False
+            if n_wait_iter >= self["max_wait_iter"] and sun_rate <= 0:
+                self.log.warning(
+                    "Maximum number of wait iterations reached and the sun is "
+                    "not rising. Giving up."
                 )
                 return False
 
-            # dawn: the sky is brightening, wait for it
             self.log.info(
                 f"Computed exposure time {exposure_time:.2f} exceeded the limit of "
-                f"{exptime_max}. Waiting 6 sec..."
+                f"{exptime_max}. Sun at {sun_alt:.2f}, rising - waiting 6 sec..."
             )
             n_wait_iter += 1
             if self._abort.wait(6):
@@ -676,19 +696,23 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             coefficients = json.loads(re.sub("#(.*)", "", f.read()))
         return coefficients
 
-    def _next_filter(self, filter_id, tried, dusk, sun_alt):
+    def _next_filter(self, filter_id, tried, need_brighter, sun_alt):
         """The next filter to try when this one cannot reach ideal_counts.
 
         Ranked by the rate each filter's model predicts AT THIS sun
         altitude, not by the scale term: scale is the rate at altitude 0 and
         the filters cross as twilight fades. In the LNA40 set B outruns R at
         sunset and is six times fainter than it two degrees later, so a
-        scale ranking sends the dusk walk from R to a filter that needs a
-        LONGER exposure, not a shorter one.
+        scale ranking sends the walk to a filter that needs a LONGER
+        exposure, not a shorter one.
 
-        At dusk the sky is fading and we need the next brighter filter; at
-        dawn it is flooding and we need the next fainter one. Returns None
-        once nothing is left in that direction.
+        ``need_brighter`` is the DIRECTION, and it follows the reason for
+        switching, not which twilight this is: an exposure over exptime_max
+        needs a more sensitive filter (True) at dusk and at dawn alike, and
+        one under exptime_min needs a less sensitive one (False) at both.
+        Keying it on dusk instead is what made the dawn walk answer "R needs
+        more than 60 s" with V (opd-40 2026-07-29). Returns None once
+        nothing is left in that direction.
         """
         if not self["filter_fallback"]:
             return None
@@ -705,11 +729,12 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
         candidates = [
             (value, name)
             for name, value in rates.items()
-            if name not in tried and (value > current if dusk else value < current)
+            if name not in tried
+            and (value > current if need_brighter else value < current)
         ]
         if not candidates:
             return None
-        return min(candidates)[1] if dusk else max(candidates)[1]
+        return min(candidates)[1] if need_brighter else max(candidates)[1]
 
     def exp_arg(self, x, scale, slope, bias):
         """Sky brightness model: counts/s at a sun altitude in RADIANS."""
