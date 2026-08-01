@@ -23,11 +23,9 @@ from chimera_skyflat.interfaces.autoskyflat import IAutoSkyFlat
 
 __author__ = "kanaan"
 
-# The sun's altitude is sampled twice, this far apart, and then extrapolated
-# linearly over the exposure-time integration below. Sampling it at every
-# integration step instead costs one bus round-trip per 0.2 s of modelled
-# exposure (~1500 for a 300 s frame); over a 5 min horizon the linear error
-# is ~0.01 deg, i.e. ~1% in predicted counts.
+# Sun altitude is sampled twice this far apart and extrapolated linearly:
+# sampling every integration step would cost a bus round-trip per 0.2 s of
+# modelled exposure, for ~1% in predicted counts.
 SUN_TRACK_BASELINE = 60.0
 
 # Bounds for the multiplicative sky-model correction. A night that needs
@@ -395,19 +393,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             computed = self.compute_sky_flat_time(model_gain)
 
             if computed is False:
-                # exptime_max reached. At dusk the sky only gets fainter, so
-                # this filter is done - but a MORE SENSITIVE one can still
-                # reach ideal_counts in time. Walk up the coefficients by
-                # scale (V -> R -> CLEAR) instead of ending the whole
-                # sequence, which used to abandon twilight with filters to
-                # spare. At dawn compute_sky_flat_time waits instead.
-                # need_brighter=True at BOTH ends of the night: the reason we
-                # are here is "this filter cannot reach ideal_counts inside
-                # exptime_max", and the cure is always a more sensitive
-                # filter. Passing `dusk` here sent the dawn walk down the
-                # sensitivity ladder instead of up - on opd-40 2026-07-29 it
-                # answered "R needs more than 60 s" by switching to V, which
-                # needs LONGER still, and R got no flats at all.
+                # exptime_max reached: walk UP the sensitivity ladder
+                # (V -> R -> CLEAR) rather than end the sequence. Always
+                # need_brighter - only a more sensitive filter cures this.
                 next_filter = self._next_filter(filter_id, tried_filters, True, sun_alt)
                 if next_filter is None:
                     break
@@ -608,11 +596,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
             exposure_time = 0.0
 
             while exposure_time <= exptime_max:
-                # the sun keeps moving during the exposure, so integrate the
-                # rate forward instead of freezing it at the start. float():
-                # np.exp() makes the rate a numpy scalar, and msgspec cannot
-                # encode one, so letting it reach the ImageRequest breaks
-                # every bus message the exposure touches
+                # integrate the rate forward: the sun moves during the
+                # exposure. float() because np.exp() yields a numpy scalar,
+                # which msgspec cannot encode onto the bus.
                 rate = float(
                     self._sky_rate(sun_alt + sun_rate * exposure_time, model_gain)
                 )
@@ -639,13 +625,9 @@ class AutoSkyFlat(ChimeraObject, IAutoSkyFlat):
                     f"of {exptime_max}. Finishing this filter..."
                 )
                 return False
-            # Dawn: the sky is brightening, so this wait ALWAYS ends - either
-            # the exposure comes under exptime_max or the sun leaves the top
-            # of the window. Bound it by the window, not by a fixed iteration
-            # count: 100 x 6 s = 10 min gave up at sun -6.6 deg on opd-40
-            # 2026-07-29, four minutes short of the first usable frame, and
-            # the caller then walked the filter the wrong way. max_wait_iter
-            # stays as a backstop against a clock that is not advancing.
+            # Dawn: the sky brightens, so this wait always ends. Bound it by
+            # the window, not an iteration count that could expire before the
+            # first usable frame; max_wait_iter backstops a stalled clock.
             if sun_alt >= float(self["sun_alt_hi"]):
                 self.log.warning(
                     f"Sun altitude {sun_alt:.2f} reached the top of the flat "

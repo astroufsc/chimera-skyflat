@@ -39,10 +39,9 @@ class IAutoSkyFlat(Interface):
         # Skip the slew when the telescope is already this close to the flat
         # position (degrees). 0 to slew before every frame.
         "flat_position_max": 1,
-        # Skyflat altitude. The azimuth is not configurable: flats are shot
-        # at the anti-solar point, where the twilight gradient is smallest.
-        # Altitude is a site decision - horizon, dome slit, mount limits -
-        # so it stays a knob; arXiv:1407.8283 puts the null point at 75.
+        # Altitude only: the azimuth is fixed at the anti-solar point, where
+        # the twilight gradient is smallest. arXiv:1407.8283 puts the null
+        # point at 75.
         "flat_alt": 75,
         # Pier side to take Skyflats on: "EAST", "WEST" or None to leave it
         # to the telescope.
